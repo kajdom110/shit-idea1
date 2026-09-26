@@ -69,3 +69,37 @@ footer {
     box-sizing: border-box;
   }
 }
+
+.faq-item {
+  background-color: white;
+  border-radius: 12px;
+  border: 1px solid #ddd;
+  margin: 10px 0;
+  overflow: hidden;
+}
+
+.faq-question {
+  width: 100%;
+  text-align: right;
+  background: none;
+  border: none;
+  padding: 15px 20px;
+  font-size: 16px;
+  font-weight: bold;
+  color: #2a6f97;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.faq-answer {
+  padding: 0 20px;
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.3s ease, padding 0.3s ease;
+  margin: 0;
+}
+
+.faq-answer.open {
+  max-height: 200px;
+  padding: 0 20px 15px;
+}
