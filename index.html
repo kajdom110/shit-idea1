@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <title>شت ایده ها</title>
+  <style>
+    h1 { color: rgb(28, 16, 193); }
+    img { width: 300px; }
+    .feature {
+      background-color: white;
+      padding: 20px;
+      margin: 10px;
+      border-radius: 12px;
+      border: 1px solid #ddd;
+      color: #2a6f97;
+      font-weight: bold;
+    }
+    .features {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .feature:hover {
+      background-color: #e6f2fa;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background-color: white;
+      padding: 15px 20px;
+      border-radius: 12px;
+      flex-wrap: wrap;
+    }
+    nav {
+      display: flex;
+      gap: 15px;
+    }
+    nav a {
+      color: #2a6f97;
+      text-decoration: none;
+      font-weight: bold;
+    }
+    footer {
+      background-color: white;
+      padding: 20px;
+      border-radius: 12px;
+      margin-top: 20px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1 class="logo">شت ایده ها</h1>
+    <nav>
+      <a href="#services">خدمات</a>
+      <a href="#contact">تماس با ما</a>
+    </nav>
+  </header>
+  <p>این جا ایده‌های شت معرفی میشوند.</p>
+  <img src="photo2.png" alt="تصویری از فعالیت‌های ما">
+  <p><button onclick="document.getElementById('message').textContent = 'JavaScript کارها می‌کند!'">کلیک کن</button></p>
+  <p id="message"></p>
+  <h2>خدمات ما</h2>
+  <div class="features" id="services">
+    <div class="feature">شت اول  </div>
+    <div class="feature">شت دوم  </div>
+    <div class="feature">شت سوم  </div>
+  </div>
+  <footer id="contact">
+    <p>ایمیل: info@example.com</p>
+    <p>تلفن: ۰۹۱۲xxxxxxx</p>
+  </footer>
+</body>
+</html>
