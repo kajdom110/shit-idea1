@@ -3,7 +3,8 @@ h1 {
 }
 
 img {
-  width: 300px;
+  max-width: 100%;
+  height: auto;
 }
 
 .feature {
@@ -53,4 +54,18 @@ footer {
   border-radius: 12px;
   margin-top: 20px;
   text-align: center;
+}
+
+/* استایل‌های مخصوص صفحه‌های کوچک (موبایل) */
+@media (max-width: 600px) {
+  header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .feature {
+    width: 100%;
+    box-sizing: border-box;
+  }
 }
