@@ -17,11 +17,10 @@
     </nav>
   </header>
 
-  <h2>تماس با ما</h2>
+  <h2>درخواست مشاوره‌ی رایگان</h2>
   <p>پیام خود را از طریق فرم زیر برای ما بفرستید.</p>
 
-  <!-- فرم فعلاً فقط ظاهری است و به بک‌اند وصل نیست -->
-  <form class="contact-form" onsubmit="event.preventDefault()">
+  <form class="contact-form" id="contactForm">
     <label for="name">نام</label>
     <input type="text" id="name" name="name" required>
 
@@ -32,11 +31,14 @@
     <textarea id="message" name="message" rows="5" required></textarea>
 
     <button type="submit">ارسال پیام</button>
+    <p class="form-status" id="formStatus" role="status"></p>
   </form>
 
   <footer id="contact">
     <p>ایمیل: info@example.com</p>
     <p>تلفن: ۰۹۱۲xxxxxxx</p>
   </footer>
+
+  <script src="contact.js"></script>
 </body>
 </html>
