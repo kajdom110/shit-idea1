@@ -145,29 +145,3 @@ footer {
 .contact-form button:hover {
   background-color: #1f5475;
 }
-
-.testimonials {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.testimonial {
-  background-color: white;
-  padding: 20px;
-  margin: 10px;
-  border-radius: 12px;
-  border: 1px solid #ddd;
-  flex: 1 1 200px;
-}
-
-.testimonial-text {
-  margin-top: 0;
-  line-height: 1.8;
-}
-
-.testimonial-author {
-  margin-bottom: 0;
-  color: #2a6f97;
-  font-weight: bold;
-}
