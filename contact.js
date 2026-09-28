@@ -1,6 +1,22 @@
 const contactForm = document.getElementById('contactForm');
 const formStatus = document.getElementById('formStatus');
 
+// something@something.something, with no spaces
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function validate(data) {
+  if (!data.name) {
+    return 'لطفاً نام خود را وارد کنید.';
+  }
+  if (!EMAIL_PATTERN.test(data.email)) {
+    return 'لطفاً یک ایمیل معتبر وارد کنید (مثل name@example.com).';
+  }
+  if (!data.message) {
+    return 'لطفاً متن پیام را بنویسید.';
+  }
+  return null;
+}
+
 contactForm.addEventListener('submit', async function (event) {
   event.preventDefault();
 
@@ -10,6 +26,13 @@ contactForm.addEventListener('submit', async function (event) {
     email: contactForm.email.value.trim(),
     message: contactForm.message.value.trim()
   };
+
+  const validationError = validate(data);
+  if (validationError) {
+    formStatus.className = 'form-status error';
+    formStatus.textContent = validationError;
+    return;
+  }
 
   button.disabled = true;
   formStatus.className = 'form-status';
