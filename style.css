@@ -191,3 +191,19 @@ footer {
 .message-card strong {
   color: #2a6f97;
 }
+
+.feature h3 {
+  margin: 0 0 8px;
+  font-size: 18px;
+}
+
+.feature p {
+  margin: 0;
+  color: #333;
+  font-weight: normal;
+}
+
+.services-status.error {
+  color: #c62828;
+  font-weight: bold;
+}
