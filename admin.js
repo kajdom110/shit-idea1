@@ -55,11 +55,53 @@ async function loadMessages(token) {
   }
 }
 
-const password = prompt('رمز را وارد کنید:');
+const loginForm = document.getElementById('loginForm');
+const loginStatus = document.getElementById('loginStatus');
+const loginButton = loginForm.querySelector('button');
 
-// The backend checks the token; skip the request only if nothing was entered
-if (password) {
-  loadMessages(password);
-} else {
-  showUnauthorized();
+// Token from /api/login; kept only in memory, so a page reload asks to log in again
+let adminToken = null;
+
+function showLoginError(text) {
+  loginStatus.className = 'form-status error';
+  loginStatus.textContent = text;
 }
+
+loginForm.addEventListener('submit', async function (event) {
+  event.preventDefault();
+
+  const username = document.getElementById('username').value;
+  const password = document.getElementById('password').value;
+
+  loginStatus.className = 'form-status';
+  loginStatus.textContent = 'در حال ورود...';
+  loginButton.disabled = true;
+
+  try {
+    const response = await fetch('https://kajdom110.pythonanywhere.com/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: username, password: password })
+    });
+
+    if (response.status === 401) {
+      showLoginError('نام‌کاربری یا رمز اشتباه است');
+      return;
+    }
+
+    if (!response.ok) {
+      throw new Error('Request failed: ' + response.status);
+    }
+
+    const data = await response.json();
+    adminToken = data.token;
+
+    // Not loginForm.hidden: .contact-form's display: flex would override it
+    loginForm.style.display = 'none';
+    loadMessages(adminToken);
+  } catch (error) {
+    showLoginError('ورود انجام نشد. لطفاً دوباره تلاش کنید.');
+  } finally {
+    loginButton.disabled = false;
+  }
+});

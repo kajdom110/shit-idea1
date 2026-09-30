@@ -19,6 +19,18 @@
   </header>
 
   <h2>درخواست‌های ثبت‌شده</h2>
+
+  <form class="contact-form" id="loginForm" novalidate>
+    <label for="username">نام‌کاربری</label>
+    <input type="text" id="username" name="username" autocomplete="username" required>
+
+    <label for="password">رمز عبور</label>
+    <input type="password" id="password" name="password" autocomplete="current-password" required>
+
+    <button type="submit">ورود</button>
+    <p class="form-status" id="loginStatus" role="status"></p>
+  </form>
+
   <p class="admin-status" id="adminStatus"></p>
   <div class="messages" id="messagesList"></div>
 
