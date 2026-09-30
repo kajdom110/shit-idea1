@@ -110,6 +110,24 @@ nav a {
   transform: translateY(-2px);
 }
 
+.cta {
+  margin: 40px 0 20px;
+  padding: 40px 30px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #e6f2fa 0%, #ffffff 100%);
+  border: 1px solid #d3e6f2;
+  box-shadow: 0 6px 20px rgba(42, 111, 151, 0.12);
+  text-align: center;
+}
+
+.cta-text {
+  margin: 0 0 25px;
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1.8;
+  color: #2a6f97;
+}
+
 footer {
   background-color: white;
   padding: 20px;
@@ -134,6 +152,14 @@ footer {
   .hero {
     flex-direction: column;
     padding: 25px 20px;
+  }
+
+  .cta {
+    padding: 25px 20px;
+  }
+
+  .cta-text {
+    font-size: 18px;
   }
 
   .hero-title {

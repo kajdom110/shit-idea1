@@ -37,7 +37,7 @@ async function loadServices() {
     const services = await response.json();
 
     if (services.length === 0) {
-      servicesStatus.textContent = 'در حال حاضر خدمتی برای نمایش وجود ندارد.';
+      servicesStatus.textContent = 'به‌زودی خدمات تازه‌ای اینجا معرفی می‌شود.';
       return;
     }
 
@@ -48,7 +48,7 @@ async function loadServices() {
     });
   } catch (error) {
     servicesStatus.className = 'services-status error';
-    servicesStatus.textContent = 'دریافت خدمات انجام نشد. لطفاً بعداً دوباره تلاش کنید.';
+    servicesStatus.textContent = 'فعلاً نتوانستیم خدمات را نمایش دهیم؛ لطفاً چند لحظه بعد دوباره سر بزنید.';
   }
 }
 
