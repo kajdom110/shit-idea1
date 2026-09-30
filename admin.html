@@ -31,8 +31,28 @@
     <p class="form-status" id="loginStatus" role="status"></p>
   </form>
 
-  <p class="admin-status" id="adminStatus"></p>
-  <div class="messages" id="messagesList"></div>
+  <div id="adminPanel" hidden>
+    <button type="button" class="admin-button logout-button" id="logoutButton">خروج</button>
+
+    <p class="admin-status" id="adminStatus"></p>
+    <div class="messages" id="messagesList"></div>
+
+    <h2>خدمات</h2>
+
+    <form class="contact-form" id="serviceForm" novalidate>
+      <label for="serviceTitle">عنوان</label>
+      <input type="text" id="serviceTitle" name="title" required>
+
+      <label for="serviceDescription">توضیح</label>
+      <textarea id="serviceDescription" name="description" rows="3" required></textarea>
+
+      <button type="submit">ثبت</button>
+      <p class="form-status" id="serviceFormStatus" role="status"></p>
+    </form>
+
+    <p class="admin-status" id="servicesStatus"></p>
+    <div class="messages" id="servicesList"></div>
+  </div>
 
   <footer id="contact">
     <p>ایمیل: info@example.com</p>

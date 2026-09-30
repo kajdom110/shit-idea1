@@ -192,6 +192,76 @@ footer {
   color: #2a6f97;
 }
 
+.admin-button {
+  background-color: #2a6f97;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: bold;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.admin-button:hover {
+  background-color: #1f5475;
+}
+
+.admin-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.admin-button.danger {
+  background-color: #c62828;
+}
+
+.admin-button.danger:hover {
+  background-color: #9f1f1f;
+}
+
+.admin-button.secondary {
+  background-color: #777;
+}
+
+.admin-button.secondary:hover {
+  background-color: #5c5c5c;
+}
+
+.logout-button {
+  margin-bottom: 15px;
+}
+
+#serviceForm {
+  margin-bottom: 15px;
+}
+
+.service-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.service-edit-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+  color: #2a6f97;
+  font-weight: bold;
+}
+
+.service-edit-field input,
+.service-edit-field textarea {
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 16px;
+  font-family: inherit;
+  font-weight: normal;
+}
+
 .feature h3 {
   margin: 0 0 8px;
   font-size: 18px;
