@@ -624,14 +624,15 @@ def khatam_lip():
     d_cm = g.op('MULTIPLY', sc.outputs['Red'], LIP_EDGE[5])       # cm from the nearest edge
     half = 0.95                                                   # the border is about 1.9 cm wide
     across = g.op('MINIMUM', 1.0, g.op('DIVIDE', d_cm, half))     # 0 at an edge … 1 in the middle
-    pale = g.op('LESS_THAN', d_cm, 0.09)                          # the two pale lines
+    pale = g.op('LESS_THAN', d_cm, 0.06)                          # the two pale lines
     # along the band: a coordinate that keeps running round both curves of the outline
     along = g.op('ADD', g.op('MULTIPLY', sep.outputs['X'], 260.0), g.op('MULTIPLY', sep.outputs['Z'], 260.0))
     tri = g.op('MULTIPLY', g.op('ABSOLUTE', g.op('SUBTRACT', g.op('FRACT', along), 0.5)), 2.0)
-    tooth = g.op('LESS_THAN', g.op('DIVIDE', g.op('SUBTRACT', across, 0.2), 0.45), tri)
-    tooth = g.op('MULTIPLY', tooth, g.op('MULTIPLY', g.op('GREATER_THAN', across, 0.2), g.op('LESS_THAN', across, 0.65)))
-    col = g.mix(tooth, srgb('#1a0e08'), srgb('#cdbb98'))
-    col = g.mix(pale, col, srgb('#c9a874'))
+    # small triangles: at a distance the band must read dark with a fine pale pattern
+    tooth = g.op('LESS_THAN', g.op('DIVIDE', g.op('SUBTRACT', across, 0.3), 0.35), g.op('MULTIPLY', tri, 0.8))
+    tooth = g.op('MULTIPLY', tooth, g.op('MULTIPLY', g.op('GREATER_THAN', across, 0.3), g.op('LESS_THAN', across, 0.62)))
+    col = g.mix(tooth, srgb('#160b06'), srgb('#bfae8c'))
+    col = g.mix(pale, col, srgb('#b08f5e'))
     g.link(col, bsdf.inputs['Base Color'])
     bsdf.inputs['Roughness'].default_value = 0.35
     bsdf.inputs['Coat Weight'].default_value = 0.8; bsdf.inputs['Coat Roughness'].default_value = 0.1

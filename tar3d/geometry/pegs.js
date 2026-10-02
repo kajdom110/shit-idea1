@@ -20,7 +20,21 @@ export const pegY = (p) => TOTAL_LENGTH - p.at * HEAD.height;
 function pegGeometry() {
   const s = PEGS.reach / 5.2, r = PEGS.knobDiameter / 3.2;
   const pts = PROFILE.map(([u, rad]) => new THREE.Vector2(Math.max(rad * (u > 2.3 ? r : 1), 0.001), u * s));
-  const knob = new THREE.LatheGeometry(pts, 40);
+  const knob = new THREE.LatheGeometry(pts, 96);
+  // Carved knob (round 14, samples): twelve shallow flutes round the knob and a rosette of
+  // grooves on its end, cut by hand so a little uneven.
+  const pos = knob.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+    const u = y / s;
+    if (u < 2.6) continue;
+    const phi = Math.atan2(z, x);
+    const fade = Math.min(1, (u - 2.6) / 0.4);
+    const end = u > 4.9 ? 1 + 0.12 * Math.cos(8 * phi) : 1; // rosette petals on the end
+    const k = (1 + 0.045 * fade * Math.cos(12 * phi + 0.15 * Math.sin(3 * phi))) * end;
+    pos.setXYZ(i, x * k, y, z * k);
+  }
+  knob.computeVertexNormals();
   // Shaft through the head: from the wall back across the slot to just past the far wall.
   const through = HEAD.width + 0.25;
   const shaft = new THREE.CylinderGeometry(PEGS.shaftDiameter / 2, PEGS.shaftTipDiameter / 2, through, 20, 1, false);

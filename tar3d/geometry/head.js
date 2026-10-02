@@ -2,6 +2,7 @@
 // cusped three-lobed cut-outs at both ends of the slot (R5). Built from two extrusions:
 // the back wall, and the frame around the slot.
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { HEAD, NECK, TOTAL_LENGTH } from '../dimensions.js';
 import { symmetricShape } from './util.js';
 import { BOARD_TOP_Z } from './neck.js';
@@ -71,6 +72,19 @@ export function buildHead(materials) {
   const floor = new THREE.Mesh(new THREE.ShapeGeometry(new THREE.Shape(slot)).translate(0, 0, HEAD_BACK_Z + HEAD.wall + 0.005), materials.cavity);
   floor.name = 'slotFloor';
 
-  [back, frame, floor].forEach((m) => { m.castShadow = m.receiveShadow = true; group.add(m); });
+  // Crown (round 14, the user's samples): a row of small carved pyramids along the top of the head.
+  const crown = [];
+  const n = HEAD.crown.count, side = (HEAD.width - 2 * b) / n;
+  for (let i = 0; i < n; i++) {
+    const g = new THREE.ConeGeometry(side / Math.SQRT2, HEAD.crown.height, 4, 1);
+    g.rotateY(Math.PI / 4); // square base lined up with the head
+    g.scale(1, 1, (HEAD.depth - 2 * b) / side);
+    g.translate(-hw + b + side * (i + 0.5), y1 + HEAD.crown.height / 2 - 0.01, HEAD_MID_Z);
+    crown.push(g);
+  }
+  const crownMesh = new THREE.Mesh(mergeGeometries(crown), materials.headWood);
+  crownMesh.name = 'headCrown';
+
+  [back, frame, floor, crownMesh].forEach((m) => { m.castShadow = m.receiveShadow = true; group.add(m); });
   return group;
 }
