@@ -1109,7 +1109,10 @@ def main(argv):
         sc, pivot, cam = setup(1200, 900, 64)
         out = HERE / 'frames_raw' / 'sheet'; out.mkdir(parents=True, exist_ok=True)
         c = SCENES['pivot']
-        for pitch in (-60, -30, 0, 30, 60):
+        # Round 16: the tar falls over backwards, so the sheet also covers it lying down and
+        # turned further, showing the tail end, the underside and the back of the bowls from below.
+        pitches = [int(p) for p in os.environ.get('TAR_SHEET_PITCHES', '-60,-30,0,30,60,-75,-90,-105,-120,-150,-180').split(',')]
+        for pitch in pitches:
             for yaw in range(0, 360, 15):
                 path = out / f'y{yaw:03d}_p{pitch:+03d}.png'
                 if path.exists():
