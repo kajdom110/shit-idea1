@@ -14,6 +14,7 @@ and the camera looks along +y.
 """
 import json
 import math
+import os
 import sys
 import time
 from pathlib import Path
@@ -26,6 +27,9 @@ BUILD = HERE / 'build'
 ASSETS = HERE / 'assets'
 WEB_TEX = HERE.parent / 'tar3d' / 'textures'
 CM = 0.01
+# Polish of the bowl, 0 (raw, matte: the user's choice in round 5) … 1 (a thin, satin
+# oil-and-wax finish). TAR_GLOSS=1 renders the satin variant for comparison.
+GLOSS = float(os.environ.get('TAR_GLOSS', '0'))
 
 SCENES = json.loads((BUILD / 'scenes.json').read_text())
 PIVOT_WEB = SCENES['pivot']
@@ -208,7 +212,12 @@ def ring_wood(name, light, mid, line, axis_cm, tilt, rings_per_cm, roughness, wa
     nt.links.new(strength.outputs['Result'], mul.inputs['A'])
     nt.links.new(comb.outputs['Color'], mul.inputs['B'])
     nt.links.new(mul.outputs['Result'], bsdf.inputs['Base Color'])
-    bsdf.inputs['Roughness'].default_value = roughness
+    polish = GLOSS if name in ('wood', 'lip') else 0.0
+    bsdf.inputs['Roughness'].default_value = roughness * (1 - 0.3 * polish)
+    if polish:
+        # a thin satin coat: soft, broad highlights, never a mirror-like lacquer
+        bsdf.inputs['Coat Weight'].default_value = 0.25 * polish
+        bsdf.inputs['Coat Roughness'].default_value = 0.28
     bsdf.inputs['Specular IOR Level'].default_value = 0.35
     # fibres and pores give a faint relief
     bump = nt.nodes.new('ShaderNodeBump'); bump.inputs['Strength'].default_value = 0.08; bump.inputs['Distance'].default_value = 0.0005
@@ -444,7 +453,7 @@ def main(argv):
     mode = argv[0] if argv else 'test'
     if mode == 'test':
         sc, pivot, cam = setup(960, 540, 48)
-        out = BUILD / 'test'; out.mkdir(parents=True, exist_ok=True)
+        out = BUILD / os.environ.get('TAR_TEST_DIR', 'test'); out.mkdir(parents=True, exist_ok=True)
         for k in SCENES['keyframes'][1:]:
             apply_pose(pivot, cam, k['yaw'], k['pitch'], k['target'], k['dist'], k['elev'], k.get('aperture', 0))
             render(sc, out / f"scene_{k['caption']}.png")
