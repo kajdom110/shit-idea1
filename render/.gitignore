@@ -3,3 +3,4 @@ build/
 frames_raw/
 assets/
 __pycache__/
+frames_raw_*/
