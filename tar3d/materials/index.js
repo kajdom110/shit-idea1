@@ -47,8 +47,35 @@ function skinEdgeMask() {
   return { tex, bounds };
 }
 
-export function createMaterials({ anisotropy = 8 } = {}) {
-  const loader = new THREE.TextureLoader();
+// Strings are a fraction of a millimetre thick, far less than a pixel from across the room,
+// so they would flicker in and out. This keeps each string at least ~0.7 px wide on screen
+// and fades it in proportion, which is how a thin wire really reads in a photograph.
+export const stringUniforms = { pixelAngle: { value: 0.0005 } };
+function makeString(base, radius) {
+  const m = base.clone();
+  m.transparent = true;
+  m.onBeforeCompile = (shader) => {
+    shader.uniforms.pixelAngle = stringUniforms.pixelAngle;
+    shader.uniforms.stringRadius = { value: radius };
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nuniform float pixelAngle;\nuniform float stringRadius;\nvarying float vCover;')
+      .replace('#include <begin_vertex>', `#include <begin_vertex>
+        {
+          float dist = max(1.0, -(modelViewMatrix * vec4(position, 1.0)).z);
+          float want = 0.35 * pixelAngle * dist;
+          transformed += objectNormal * max(0.0, want - stringRadius);
+          vCover = clamp(stringRadius / want, 0.3, 1.0);
+        }`);
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nvarying float vCover;')
+      .replace('#include <alphamap_fragment>', '#include <alphamap_fragment>\ndiffuseColor.a *= vCover;');
+  };
+  m.customProgramCacheKey = () => 'tar-string';
+  return m;
+}
+
+export function createMaterials({ anisotropy = 8, manager } = {}) {
+  const loader = new THREE.TextureLoader(manager);
   const T = (name, opts) => loadTexture(loader, name, { aniso: anisotropy, ...opts });
 
   /* ---------- woods ---------- */
@@ -142,6 +169,8 @@ export function createMaterials({ anisotropy = 8 } = {}) {
 
   const metal = new THREE.MeshPhysicalMaterial({ color: '#d4d4d2', metalness: 1, roughness: 0.25 });
   const bronze = new THREE.MeshPhysicalMaterial({ color: '#b48848', metalness: 1, roughness: 0.32 });
+  const stringSteel = makeString(metal, 0.014);
+  const stringBronze = makeString(bronze, 0.025);
 
-  return { wood, lightWood, headWood, pegWood, boardWood, horn, cavity, skin, bone, boneSmall, inlay, gut, metal, bronze };
+  return { wood, lightWood, headWood, pegWood, boardWood, horn, cavity, skin, bone, boneSmall, inlay, gut, metal, bronze, stringSteel, stringBronze };
 }

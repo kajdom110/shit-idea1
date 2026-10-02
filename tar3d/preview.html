@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>تار سه‌بعدی</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Naskh+Arabic:wght@600;700&family=Vazirmatn:wght@400;500;700&display=swap">
+  <style>
+    /* Layout: a fixed full-screen studio; captions rest at the right, a scene rail at the left;
+       the page itself is only scroll length that drives the camera. Single dark look. */
+    :root {
+      --bg: #080707;
+      --fg: #efe6da;
+      --muted: #a89a8b;
+      --accent: #d6a066;
+      --line: rgba(239, 230, 218, 0.16);
+      --display: 'Noto Naskh Arabic', 'Vazirmatn', Tahoma, serif;
+      --body: 'Vazirmatn', Tahoma, sans-serif;
+      color-scheme: dark;
+    }
+    html { background: var(--bg); }
+    body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--body); }
+    #stage { position: fixed; inset: 0; }
+    #stage canvas { display: block; width: 100%; height: 100%; cursor: grab; outline: none; }
+    #stage canvas.is-dragging { cursor: grabbing; }
+    #stage canvas:focus-visible { box-shadow: inset 0 0 0 2px var(--accent); }
+    .scroll-length { height: 900vh; }
+
+    /* Fine grain and a soft vignette, so the render reads as a photograph */
+    .grain, .vignette { position: fixed; inset: 0; pointer-events: none; }
+    .grain { opacity: 0.06; mix-blend-mode: overlay; }
+    .vignette { background: radial-gradient(ellipse at 50% 46%, transparent 52%, rgba(0, 0, 0, 0.55) 100%); }
+
+    .captions { position: fixed; inset: 0; pointer-events: none; }
+    .caption {
+      position: absolute;
+      top: 50%;
+      right: clamp(24px, 7vw, 120px);
+      width: min(26rem, 34vw);
+      transform: translateY(-50%);
+      opacity: 0;
+      transition: opacity 0.2s linear;
+    }
+    .caption h2 {
+      margin: 0 0 0.6rem;
+      font-family: var(--display);
+      font-weight: 700;
+      font-size: clamp(2rem, 3.6vw, 3.4rem);
+      line-height: 1.25;
+      text-wrap: balance;
+    }
+    .caption p { margin: 0; font-size: 1.02rem; line-height: 2; color: var(--muted); max-width: 30em; }
+    .caption .eyebrow { display: block; margin-bottom: 0.5rem; font-size: 0.8rem; letter-spacing: 0.04em; color: var(--accent); }
+    .caption a {
+      pointer-events: auto;
+      display: inline-block;
+      margin-top: 1.2rem;
+      padding: 0.7rem 1.4rem;
+      border-radius: 10px;
+      background: var(--accent);
+      color: #1a120b;
+      font-weight: 700;
+      text-decoration: none;
+    }
+    .caption a:focus-visible { outline: 2px solid var(--fg); outline-offset: 3px; }
+
+    .rail { position: fixed; left: clamp(20px, 3vw, 44px); top: 50%; transform: translateY(-50%); display: grid; gap: 14px; }
+    .rail span { width: 7px; height: 7px; border-radius: 50%; background: var(--line); transition: background 0.2s, transform 0.2s; }
+    .rail span.on { background: var(--accent); transform: scale(1.4); }
+
+    .hint {
+      position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%);
+      font-size: 0.82rem; color: var(--muted);
+      padding: 6px 14px; border: 1px solid var(--line); border-radius: 999px;
+      background: rgba(8, 7, 7, 0.55);
+      backdrop-filter: blur(6px);
+      pointer-events: none;
+    }
+    #loading { position: fixed; inset: 0; display: grid; place-items: center; background: var(--bg); color: var(--muted); font-size: 0.95rem; transition: opacity 0.6s; }
+    #loading.done { opacity: 0; pointer-events: none; }
+  </style>
+  <script type="importmap">
+    { "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    } }
+  </script>
+</head>
+<body>
+  <div id="stage"></div>
+  <div class="grain" id="grain"></div>
+  <div class="vignette"></div>
+
+  <!-- Draft copy for the standalone preview; final copy is written in the next stage. -->
+  <div class="captions" aria-live="polite">
+    <section class="caption" data-caption="0">
+      <span class="eyebrow">شت ایده ها</span>
+      <h2>تار</h2>
+      <p>اسکرول کنید تا ساز را از هر طرف و از نزدیک ببینید.</p>
+    </section>
+    <section class="caption" data-caption="1">
+      <span class="eyebrow">ساخته‌شده با دست</span>
+      <h2>چوب توت، پوست بره</h2>
+      <p>کاسه و نقاره از یک تکه چوب توت تراشیده می‌شوند و رویشان پوست نازک بره کشیده می‌شود.</p>
+    </section>
+    <section class="caption" data-caption="2">
+      <span class="eyebrow">کاسه</span>
+      <h2>گود، مثل یک گلابی</h2>
+      <p>عمق کاسه تقریباً به اندازه‌ی پهنای آن است؛ همین گودی، طنین گرم تار را می‌سازد.</p>
+    </section>
+    <section class="caption" data-caption="3">
+      <span class="eyebrow">پشت ساز</span>
+      <h2>شیار و پاشنه</h2>
+      <p>شیار مورب پشت، کاسه را از نقاره جدا می‌کند و پاشنه‌ی دسته روی نقاره پایین می‌آید.</p>
+    </section>
+    <section class="caption" data-caption="4">
+      <span class="eyebrow">پرده‌ها</span>
+      <h2>۲۵ پرده‌ی روده‌ای</h2>
+      <p>هر پرده با دست دور دسته بسته می‌شود؛ پرده‌های کرن، فاصله‌های ریزِ موسیقی ایرانی را ممکن می‌کنند.</p>
+    </section>
+    <section class="caption" data-caption="5">
+      <span class="eyebrow">سرپنجه</span>
+      <h2>شش گوشی</h2>
+      <p>سه جفت سیم، با شش گوشیِ تراش‌خورده کوک می‌شوند.</p>
+    </section>
+    <section class="caption" data-caption="6">
+      <span class="eyebrow">از هر طرف</span>
+      <h2>خودتان بچرخانید</h2>
+      <p>ساز را بکشید تا به هر طرف بچرخد؛ دوبار کلیک کنید تا برگردد.</p>
+      <a href="../contact.html">تماس با ما</a>
+    </section>
+  </div>
+
+  <nav class="rail" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></nav>
+  <div class="hint">برای چرخاندن، ساز را بکشید · دوبار کلیک برای برگشت</div>
+  <div class="scroll-length"></div>
+  <div id="loading">در حال ساختن تار…</div>
+
+  <script type="module" src="./preview.js"></script>
+</body>
+</html>

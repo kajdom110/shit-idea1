@@ -2,11 +2,14 @@
 // wireframe and per-part bounding boxes with their measured sizes.
 import * as THREE from 'three';
 import { TrackballControls } from 'three/addons/controls/TrackballControls.js';
-import { createScene } from './scene.js';
-import { createMaterials } from './materials/index.js';
+import { createScene, pixelAngle } from './scene.js';
+import { createMaterials, stringUniforms } from './materials/index.js';
 import { buildInstrument } from './index.js';
 
-const { renderer, scene, camera, holder } = createScene(document.getElementById('stage'));
+const studio = createScene(document.getElementById('stage'), { dof: false });
+const { renderer, scene, camera, holder } = studio;
+studio.onResize((w, h) => { stringUniforms.pixelAngle.value = pixelAngle(camera, h); });
+studio.resize();
 const materials = createMaterials({ anisotropy: renderer.capabilities.getMaxAnisotropy() });
 const { root, parts } = buildInstrument(materials);
 holder.add(root);
@@ -68,7 +71,7 @@ Object.entries(parts).forEach(([key, obj]) => {
 function frame() {
   controls.update();
   boxHelpers.forEach((h) => h.visible && h.update());
-  renderer.render(scene, camera);
+  studio.render();
   requestAnimationFrame(frame);
 }
 window.addEventListener('resize', () => controls.handleResize());

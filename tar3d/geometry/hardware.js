@@ -100,11 +100,11 @@ export function buildStrings(materials) {
     (STRINGS.wound[i] ? bronze : steel).push(mergeGeometries(geos));
   }
 
-  const s = new THREE.Mesh(mergeGeometries(steel), materials.metal);
+  const s = new THREE.Mesh(mergeGeometries(steel), materials.stringSteel || materials.metal);
   s.name = 'steelStrings';
   group.add(s);
   if (bronze.length) {
-    const b = new THREE.Mesh(mergeGeometries(bronze), materials.bronze || materials.metal);
+    const b = new THREE.Mesh(mergeGeometries(bronze), materials.stringBronze || materials.metal);
     b.name = 'woundString';
     group.add(b);
   }
