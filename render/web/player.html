@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>تار سه‌بعدی</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Naskh+Arabic:wght@600;700&family=Vazirmatn:wght@400;500;700&display=swap">
+  <style>
+    /* R5 player: pre-rendered, path-traced frames (render/build_scene.py). Scrolling plays the
+       scroll frames; dragging turns the instrument using the rotation sheet. */
+    :root {
+      --bg: #030303; /* the renders' own backdrop at the frame edge */
+      --fg: #efe6da;
+      --muted: #a89a8b;
+      --accent: #d6a066;
+      --line: rgba(239, 230, 218, 0.16);
+      --display: 'Noto Naskh Arabic', 'Vazirmatn', Tahoma, serif;
+      --body: 'Vazirmatn', Tahoma, sans-serif;
+      color-scheme: dark;
+    }
+    html { background: var(--bg); }
+    body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--body); }
+    #stage { position: fixed; inset: 0; display: block; width: 100%; height: 100%; cursor: grab; touch-action: pan-y; outline: none; }
+    #stage.is-dragging { cursor: grabbing; }
+    #stage:focus-visible { box-shadow: inset 0 0 0 2px var(--accent); }
+    .scroll-length { height: 1000vh; }
+
+    .captions { position: fixed; inset: 0; pointer-events: none; }
+    .caption {
+      position: absolute; top: 50%; right: clamp(24px, 7vw, 120px);
+      width: min(26rem, 34vw); transform: translateY(-50%);
+      opacity: 0; transition: opacity 0.25s linear;
+    }
+    .caption h2 {
+      margin: 0 0 0.6rem; font-family: var(--display); font-weight: 700;
+      font-size: clamp(2rem, 3.6vw, 3.4rem); line-height: 1.25; text-wrap: balance;
+    }
+    .caption p { margin: 0; font-size: 1.02rem; line-height: 2; color: var(--muted); max-width: 30em; }
+    .caption .eyebrow { display: block; margin-bottom: 0.5rem; font-size: 0.8rem; letter-spacing: 0.04em; color: var(--accent); }
+
+    .rail { position: fixed; left: clamp(20px, 3vw, 44px); top: 50%; transform: translateY(-50%); display: grid; gap: 14px; }
+    .rail span { width: 7px; height: 7px; border-radius: 50%; background: var(--line); transition: background 0.2s, transform 0.2s; }
+    .rail span.on { background: var(--accent); transform: scale(1.4); }
+
+    .hint {
+      position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%);
+      font-size: 0.82rem; color: var(--muted); padding: 6px 14px;
+      border: 1px solid var(--line); border-radius: 999px;
+      background: rgba(11, 10, 9, 0.6); backdrop-filter: blur(6px); pointer-events: none;
+    }
+    .progress { position: fixed; top: 0; left: 0; height: 2px; background: var(--accent); width: 0; transition: width 0.3s, opacity 0.6s; }
+    .progress.done { opacity: 0; }
+
+    @media (max-width: 720px) {
+      .caption { right: 20px; left: 20px; width: auto; top: auto; bottom: 64px; transform: none; }
+      .caption h2 { font-size: 1.8rem; }
+      .caption p { font-size: 0.95rem; }
+      .rail { display: none; }
+    }
+    @media (prefers-reduced-motion: reduce) { .caption { transition: none; } }
+  </style>
+</head>
+<body>
+  <canvas id="stage" tabindex="0" aria-label="تار؛ برای چرخاندن بکشید یا از کلیدهای جهت استفاده کنید" role="img"></canvas>
+  <div class="progress" id="progress"></div>
+
+  <!-- Draft copy; final copy is written with the landing page (spec section 9). -->
+  <div class="captions" aria-live="polite">
+    <section class="caption"><span class="eyebrow">شت ایده ها</span><h2>تار</h2><p>اسکرول کنید تا ساز را از هر طرف و از نزدیک ببینید.</p></section>
+    <section class="caption"><span class="eyebrow">ساخته‌شده با دست</span><h2>چوب و پوست</h2><p>کاسه و نقاره از یک تکه چوب تراشیده می‌شوند و رویشان پوست نازک بره کشیده می‌شود.</p></section>
+    <section class="caption"><span class="eyebrow">کاسه</span><h2>دو کاسه‌ی گرد</h2><p>گودی کاسه و نقاره، طنین گرم تار را می‌سازد.</p></section>
+    <section class="caption"><span class="eyebrow">پشت ساز</span><h2>نوارهای خاتم</h2><p>نوارهای باریک روشن در طول کاسه، و پاشنه‌ی دسته که روی نقاره پایین می‌آید.</p></section>
+    <section class="caption"><span class="eyebrow">پرده‌ها</span><h2>۲۵ پرده‌ی روده‌ای</h2><p>هر پرده با دست دور دسته بسته می‌شود؛ پرده‌های کرن فاصله‌های ریز موسیقی ایرانی را ممکن می‌کنند.</p></section>
+    <section class="caption"><span class="eyebrow">سرپنجه</span><h2>شش گوشی</h2><p>سه جفت سیم، با شش گوشی تراش‌خورده کوک می‌شوند.</p></section>
+    <section class="caption"><span class="eyebrow">از هر طرف</span><h2>خودتان بچرخانید</h2><p>ساز را بکشید تا بچرخد؛ دوبار کلیک کنید تا برگردد.</p></section>
+    <section class="caption"><span class="eyebrow">صفحه</span><h2>پوست، خرک و سیم‌ها</h2><p>دو پوستِ اشکی و قلبی، با حاشیه‌ی خاتم.</p></section>
+  </div>
+  <nav class="rail" aria-hidden="true"></nav>
+  <div class="hint">اسکرول برای حرکت · کشیدن برای چرخاندن · دوبار کلیک برای برگشت</div>
+  <div class="scroll-length"></div>
+
+  <script>
+  (async () => {
+    const test = new URLSearchParams(location.search).has('test');
+    const data = await (await fetch('frames.json')).json();
+    const N = data.count;
+    const canvas = document.getElementById('stage');
+    const ctx = canvas.getContext('2d');
+    const captions = [...document.querySelectorAll('.caption')];
+    const rail = document.querySelector('.rail');
+    data.captions.forEach(() => rail.appendChild(document.createElement('span')));
+    const dots = [...rail.children];
+    const progress = document.getElementById('progress');
+
+    /* ---------- image cache ---------- */
+    const frameURL = (i) => 'frames/' + String(i).padStart(4, '0') + '.webp';
+    const sheetKey = (yaw, pitch) => 'y' + String(yaw).padStart(3, '0') + '_p' + (pitch < 0 ? '-' : '+') + String(Math.abs(pitch)).padStart(2, '0');
+    const images = new Map(); // url -> HTMLImageElement once decoded
+    const pending = new Map();
+    function load(url) {
+      if (images.has(url)) return Promise.resolve(images.get(url));
+      if (pending.has(url)) return pending.get(url);
+      const img = new Image();
+      img.decoding = 'async';
+      const pr = new Promise((res) => {
+        img.onload = () => { images.set(url, img); pending.delete(url); res(img); requestDraw(); };
+        img.onerror = () => { pending.delete(url); res(null); };
+      });
+      img.src = url;
+      pending.set(url, pr);
+      return pr;
+    }
+    // Progressive order: every 16th frame first, then 8th, 4th, 2nd and the rest, so a fast
+    // scroll always has a nearby frame to show.
+    const order = [];
+    for (const step of [16, 8, 4, 2, 1]) for (let i = 0; i < N; i += step) if (!order.includes(i)) order.push(i);
+    let loaded = 0;
+    (async () => {
+      const pool = 6;
+      let next = 0;
+      const worker = async () => { while (next < order.length) { await load(frameURL(order[next++])); loaded++; progress.style.width = (100 * loaded / N) + '%'; } };
+      await Promise.all(Array.from({ length: pool }, worker));
+      progress.classList.add('done');
+      // then the rotation sheet, nearest the opening pose first
+      const keys = [];
+      for (const p of data.sheet.pitches) for (let y = 0; y < 360; y += data.sheet.yawStep) keys.push([y, p]);
+      keys.sort((a, b) => Math.abs(a[1]) - Math.abs(b[1]));
+      for (const [y, p] of keys) await load('sheet/' + sheetKey(y, p) + '.webp');
+    })();
+    const nearestLoaded = (i) => {
+      for (let d = 0; d < N; d++) {
+        for (const j of [i - d, i + d]) if (j >= 0 && j < N && images.has(frameURL(j))) return images.get(frameURL(j));
+      }
+      return null;
+    };
+
+    /* ---------- state ---------- */
+    let scrollP = 0;          // 0…1
+    let drag = null;          // active pointer drag
+    let view = null;          // {yaw, pitch} while showing the rotation sheet, else null
+    let fade = 0;             // 0 = scroll frame, 1 = sheet frame (cross-fade)
+    const readScroll = () => {
+      const max = document.documentElement.scrollHeight - innerHeight;
+      scrollP = max > 0 ? Math.min(1, Math.max(0, scrollY / max)) : 0;
+    };
+
+    function drawCover(img, alpha) {
+      if (!img) return;
+      const cw = canvas.width, ch = canvas.height;
+      const s = Math.max(cw / img.width, ch / img.height);
+      const w = img.width * s, h = img.height * s;
+      ctx.globalAlpha = alpha;
+      ctx.drawImage(img, (cw - w) / 2, (ch - h) / 2, w, h);
+      ctx.globalAlpha = 1;
+    }
+    function contain(img, alpha) {
+      // The sheet is framed for the whole instrument: fit it, never crop it. Where the scroll
+      // frame shows the whole instrument from further away, shrink the sheet to the same size,
+      // so the cross-fade does not jump.
+      if (!img) return;
+      const cw = canvas.width, ch = canvas.height;
+      const dist = data.frames[frameIndex][2];
+      const match = dist > data.sheet.dist ? data.sheet.dist / dist : 1;
+      const s = Math.min(cw / img.width, ch / img.height) * match;
+      const w = img.width * s, h = img.height * s;
+      ctx.globalAlpha = alpha;
+      ctx.drawImage(img, (cw - w) / 2, (ch - h) / 2, w, h);
+      ctx.globalAlpha = 1;
+    }
+    const snap = (v, step) => Math.round(v / step) * step;
+    function sheetImage() {
+      if (!view) return null;
+      const yaw = ((snap(view.yaw, data.sheet.yawStep) % 360) + 360) % 360;
+      const ps = data.sheet.pitches;
+      const pitch = ps.reduce((a, b) => (Math.abs(b - view.pitch) < Math.abs(a - view.pitch) ? b : a));
+      const url = 'sheet/' + sheetKey(yaw, pitch) + '.webp';
+      if (!images.has(url)) { load(url); return lastSheet; }
+      return (lastSheet = images.get(url));
+    }
+    let lastSheet = null;
+
+    let frameIndex = 0;
+    function draw() {
+      drawQueued = false;
+      ctx.fillStyle = '#030303';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      frameIndex = Math.round(scrollP * (N - 1));
+      if (fade < 1) drawCover(nearestLoaded(frameIndex), 1);
+      if (fade > 0) contain(sheetImage(), fade);
+      // captions: each one is up while the scroll is near its point
+      let on = -1;
+      data.captions.forEach((at, i) => {
+        const nextAt = data.captions[i + 1] ?? 1.01;
+        const w = scrollP >= at - 0.02 && scrollP < nextAt - 0.03 ? 1 : 0;
+        captions[i].style.opacity = view ? 0 : w;
+        if (w) on = i;
+      });
+      dots.forEach((d, i) => d.classList.toggle('on', i === on));
+    }
+    let drawQueued = false;
+    function requestDraw() { if (!drawQueued) { drawQueued = true; requestAnimationFrame(draw); } }
+
+    /* ---------- fades between scroll and sheet ---------- */
+    let fadeTarget = 0, fadeAnim = null;
+    function fadeTo(t) {
+      fadeTarget = t;
+      if (fadeAnim) return;
+      let last = performance.now();
+      const step = (now) => {
+        const dt = (now - last) / 1000; last = now;
+        fade += Math.sign(fadeTarget - fade) * Math.min(Math.abs(fadeTarget - fade), dt / 0.25);
+        if (fade === 0) view = null;
+        requestDraw();
+        fadeAnim = fade !== fadeTarget ? requestAnimationFrame(step) : null;
+      };
+      fadeAnim = requestAnimationFrame(step);
+    }
+    function returnToScroll() { if (view) fadeTo(0); }
+
+    /* ---------- input ---------- */
+    addEventListener('scroll', () => { readScroll(); if (!drag) returnToScroll(); requestDraw(); }, { passive: true });
+    canvas.addEventListener('pointerdown', (e) => {
+      if (e.pointerType === 'touch' && !e.isPrimary) return;
+      const [yaw, pitch] = data.frames[frameIndex];
+      if (!view) view = { yaw, pitch: Math.max(-60, Math.min(60, pitch)) };
+      drag = { x: e.clientX, y: e.clientY, yaw: view.yaw, pitch: view.pitch, id: e.pointerId };
+      canvas.setPointerCapture(e.pointerId);
+      canvas.classList.add('is-dragging');
+      fadeTo(1);
+    });
+    canvas.addEventListener('pointermove', (e) => {
+      if (!drag || e.pointerId !== drag.id) return;
+      const k = 360 / Math.max(600, canvas.clientWidth); // a full turn across the screen
+      view.yaw = drag.yaw - (e.clientX - drag.x) * k;
+      view.pitch = Math.max(-60, Math.min(60, drag.pitch + (e.clientY - drag.y) * 0.25));
+      requestDraw();
+    });
+    const end = (e) => { if (drag && e.pointerId === drag.id) { drag = null; canvas.classList.remove('is-dragging'); } };
+    canvas.addEventListener('pointerup', end);
+    canvas.addEventListener('pointercancel', end);
+    canvas.addEventListener('dblclick', returnToScroll);
+    canvas.addEventListener('keydown', (e) => {
+      const d = { ArrowLeft: [15, 0], ArrowRight: [-15, 0], ArrowUp: [0, -30], ArrowDown: [0, 30] }[e.key];
+      if (e.key === 'Escape' || e.key === 'Enter') { returnToScroll(); return; }
+      if (!d) return;
+      e.preventDefault();
+      if (!view) { const [yaw, pitch] = data.frames[frameIndex]; view = { yaw, pitch: Math.max(-60, Math.min(60, pitch)) }; fadeTo(1); }
+      view.yaw += d[0]; view.pitch = Math.max(-60, Math.min(60, view.pitch + d[1]));
+      requestDraw();
+    });
+
+    function resize() {
+      const dpr = Math.min(devicePixelRatio || 1, 2);
+      canvas.width = Math.round(innerWidth * dpr);
+      canvas.height = Math.round(innerHeight * dpr);
+      requestDraw();
+    }
+    addEventListener('resize', resize);
+    resize(); readScroll();
+    await load(frameURL(0));
+    requestDraw();
+
+    /* ---------- test hook ---------- */
+    window.__player = {
+      ready: () => loaded >= N,
+      scroll(p) { const max = document.documentElement.scrollHeight - innerHeight; scrollTo(0, p * max); readScroll(); returnToScroll(); requestDraw(); },
+      state: () => ({ scrollP, frameIndex, view, fade, loaded }),
+      sheetLoaded: () => [...images.keys()].filter((k) => k.startsWith('sheet/')).length,
+    };
+    if (test) document.querySelector('.hint').style.display = 'none';
+  })();
+  </script>
+</body>
+</html>
