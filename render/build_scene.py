@@ -281,7 +281,7 @@ def skin_material():
     src = bsdf.inputs['Base Color'].links[0].from_socket
     lift = nt.nodes.new('ShaderNodeMix'); lift.data_type = 'RGBA'; lift.blend_type = 'MULTIPLY'
     lift.inputs['Factor'].default_value = 1.0
-    lift.inputs['B'].default_value = (2.15, 1.8, 1.3, 1.0)
+    lift.inputs['B'].default_value = (1.95, 1.65, 1.2, 1.0)
     nt.links.new(src, lift.inputs['A']); nt.links.new(lift.outputs['Result'], bsdf.inputs['Base Color'])
     trans = nt.nodes.new('ShaderNodeBsdfTranslucent'); trans.inputs['Color'].default_value = srgb('#d9c4a8')
     mix = nt.nodes.new('ShaderNodeMixShader'); mix.inputs['Fac'].default_value = 0.06
@@ -392,7 +392,11 @@ def add_window_light():
         l.data.energy = energy; l.data.color = colour
         l.rotation_euler = (target - l.location).normalized().to_track_quat('-Z', 'Y').to_euler()
         return l
-    window = area('window', (-1.7, -1.1, 1.75), 1.1, 1.5, 230, (1.0, 0.93, 0.83))
+    # Round 9: the window sits lower and more to the side, so faces turned up to the ceiling
+    # while the instrument tips over (the skin above all) are not hit head-on; its glints on
+    # the satin finish are toned down so they never burn a part of the instrument out.
+    window = area('window', (-2.0, -0.8, 1.05), 1.1, 1.5, 230, (1.0, 0.93, 0.83))
+    window.data.specular_factor = 0.55
     # the window frame: two crossing bars just in front of the glass, seen by the light only
     d = (target - window.location).normalized()
     for k, (sx, sy) in enumerate(((0.035, 1.6), (1.2, 0.035))):
@@ -403,7 +407,15 @@ def add_window_light():
         # off-centre, as a real window never lines up with the subject
         bar.location += window.matrix_world.to_3x3() @ Vector((0.12, -0.18, 0))
     area('bounce', (1.4, -0.9, -0.35), 1.6, 1.0, 45, (1.0, 0.78, 0.55))
-    area('rim', (1.0, 1.5, 1.2), 0.35, 0.35, 140, (1.0, 0.9, 0.78))
+    # the back light: still a touch hot on the edges, but larger, dimmer and lower than in
+    # round 8 — when the tar tips over backwards its upturned faces look straight into it,
+    # and the small bright one burnt the skin and top out (measured: 1% of the instrument)
+    rim = area('rim', (1.1, 1.6, 0.55), 0.8, 0.6, 75, (1.0, 0.9, 0.78))
+    rim.data.specular_factor = 0.45
+    # a black flag overhead, as photographers use: no light straight down onto upturned faces
+    bpy.ops.mesh.primitive_plane_add(size=1, location=PIVOT + Vector((-0.2, 0, 1.6)))
+    flag = bpy.context.object; flag.name = 'flag'; flag.scale = (2.2, 1.6, 1)
+    flag.visible_camera = False; flag.visible_glossy = False
     return window
 
 
@@ -523,6 +535,16 @@ def main(argv):
         for k in SCENES['keyframes'][1:]:
             apply_pose(pivot, cam, k['yaw'], k['pitch'], k['target'], k['dist'], k['elev'], k.get('aperture', 0))
             render(sc, out / f"scene_{k['caption']}.png", seed=k['caption'], raw_dir=out / 'raw')
+    elif mode == 'fall':
+        # the instrument tipping over backwards (pitch down to -90°), straight on and turned,
+        # to check the window light never burns parts of it out (round 9)
+        sc, pivot, cam = setup(960, 540, 32)
+        out = BUILD / os.environ.get('TAR_TEST_DIR', 'fall'); out.mkdir(parents=True, exist_ok=True)
+        c = SCENES['pivot']
+        for yaw in (0, -35, -90, 180):
+            for pitch in (0, -30, -60, -75, -90):
+                apply_pose(pivot, cam, yaw, pitch, [c['x'], c['y'], c['z']], 250, 0)
+                render(sc, out / f'y{yaw:+04d}_p{pitch:+03d}.png', seed=(yaw + 360) * 100 + pitch + 100, raw_dir=out / 'raw')
     elif mode == 'scroll':
         start, end = int(argv[1]), int(argv[2])
         total = int(argv[3]) if len(argv) > 3 else 240

@@ -7,7 +7,8 @@ instrument never look like that, and the eye notices. This adds, gently:
 - exposure that is not perfectly even across the frame (a light that falls off);
 - a soft halo round the brightest highlights (bloom of a real lens);
 - a trace of colour fringing towards the edges (lateral chromatic aberration);
-- sensor grain, stronger in the shadows, different in every frame.
+- sensor grain, stronger in the shadows, different in every frame;
+- a soft shoulder in the highlights, as film and good sensors have, so nothing burns to white.
 
 Every effect is seeded and depends only on the frame's position, so a frame re-rendered
 later is identical, and neighbouring frames differ only in their grain.
@@ -37,6 +38,12 @@ def finish(img, seed=0, grain=1.0):
     # normalised coordinates, -1…1 on the short side
     s = min(w, h) / 2
     x, y = (xx - w / 2) / s, (yy - h / 2) / s
+
+    # 0. a film-like shoulder: tones above 0.78 roll off gently instead of clipping, so
+    # a brightly lit face keeps its grain and texture (round 9)
+    k = 0.78
+    over = np.maximum(a - k, 0)
+    a = np.minimum(a, k) + (1 - k) * (1 - np.exp(-over / (1 - k)))
 
     # 1. bloom: a soft halo round the highlights
     lum = a @ np.array([0.2126, 0.7152, 0.0722], dtype=np.float32)
