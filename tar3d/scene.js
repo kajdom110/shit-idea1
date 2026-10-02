@@ -82,7 +82,8 @@ export function createScene(container, { dof = true } = {}) {
   rimLeft.position.set(-160, 60, -120);
   const rimRight = new THREE.DirectionalLight(0xffdcbc, 1.1);
   rimRight.position.set(170, 30, -110);
-  const fill = new THREE.HemisphereLight(0xfff0e0, 0x16110d, 0.35);
+  // soft room fill (R7 is lit by a soft interior light, with gentle shadows)
+  const fill = new THREE.HemisphereLight(0xfff0e0, 0x2a2018, 0.6);
   scene.add(rimLeft, rimRight, fill);
 
   /* ---------- instrument holders ---------- */

@@ -20,6 +20,8 @@ uniform float woodFigure;
 uniform float woodBump;
 uniform float woodFiber;
 uniform float woodBias;
+uniform float woodLineAmount;
+uniform float woodLateAmount;
 
 float wHash(vec3 p) {
   p = fract(p * 0.3183099 + vec3(0.71, 0.113, 0.419));
@@ -54,12 +56,13 @@ vec3 woodPattern(vec3 p) {
   float ring = fract(r * woodFreq + wFbm(g * 0.3 + 7.3) * 1.5);
   // smooth and periodic: no hard edge where one ring meets the next (that read as a contour map)
   float late = pow(0.5 - 0.5 * cos(6.2831853 * ring), 1.5);
-  float line = smoothstep(0.82, 0.96, ring) * (1.0 - smoothstep(0.975, 1.0, ring));
+  // thin dark latewood line at the end of each year's growth
+  float line = smoothstep(0.86, 0.95, ring) * (1.0 - smoothstep(0.97, 1.0, ring));
   float pore = smoothstep(0.7, 0.9, wNoise(vec3(p.x * 34.0, p.y * 0.9, p.z * 34.0))) * woodPore * woodDetailFade(p);
   // broad streaks that run with the grain carry most of the colour, as in real mulberry
   float figure = (wFbm(vec3(p.x * 0.9, p.y * 0.05, p.z * 0.9) + 11.0) - 0.5) * woodFigure * 1.4
                + (wFbm(g * vec3(1.1, 1.6, 1.1)) - 0.5) * woodFigure * 0.5;
-  return vec3(clamp(late * 0.4 + figure + woodBias, 0.0, 1.0), line, pore);
+  return vec3(clamp(late * woodLateAmount + figure + woodBias, 0.0, 1.0), line, pore);
 }
 `;
 
@@ -77,6 +80,8 @@ export function makeWood(params, base = {}) {
     woodBump: { value: params.bump ?? 0.02 },
     woodFiber: { value: params.fiber ?? 0.3 },
     woodBias: { value: params.bias ?? 0.1 }, // shifts the balance of light and dark wood
+    woodLineAmount: { value: params.lineAmount ?? 0.15 }, // strength of the thin latewood lines
+    woodLateAmount: { value: params.lateAmount ?? 0.4 }, // light-to-dark swing across each ring
   };
   mat.userData.wood = u;
   mat.onBeforeCompile = (shader) => {
@@ -89,7 +94,9 @@ export function makeWood(params, base = {}) {
       .replace('#include <map_fragment>', `#include <map_fragment>
         vec3 wPat = woodPattern(vWoodPos);
         vec3 wCol = mix(woodLight, woodDark, wPat.x);
-        wCol = mix(wCol, woodLine, wPat.y * 0.08);
+        // line darkness varies from ring to ring, as in real wood
+        float wLineVar = 0.55 + 0.9 * wNoise(vWoodPos * vec3(0.6, 0.04, 0.6) + 5.0);
+        wCol = mix(wCol, woodLine, clamp(wPat.y * woodLineAmount * wLineVar, 0.0, 1.0));
         wCol *= 1.0 - wPat.z * 0.45;
         // fine fibres along the grain: raw wood, not a painted surface
         float wFade = woodDetailFade(vWoodPos);

@@ -80,11 +80,10 @@ export function createMaterials({ anisotropy = 8, manager } = {}) {
 
   /* ---------- woods ---------- */
   const wood = makeWood(
-    // kaseh and naghareh: deep red-brown of the first photo (F1), sampled in section 10;
-    // satin, not polished, with fibres and pores visible
-    { light: '#8a4008', dark: '#0b0100', line: '#070100', axis: [0, 9], freq: 3.0, warp: 1.1, pore: 0.6, figure: 1.0, bump: 0.03, fiber: 0.35, bias: 0.3 },
-    // satin oil finish: a soft sheen, far less than a polished lacquer
-    { roughness: 0.5, clearcoat: 0.25, clearcoatRoughness: 0.38, envMapIntensity: 0.45, specularIntensity: 0.65 },
+    // kaseh and naghareh: honey-amber mulberry with thin, close, nearly straight grain lines and a
+    // satin finish, matched to reference photo R7 (spec section 11)
+    { light: '#a06e32', dark: '#663f25', line: '#341a0a', axis: [0, 9], freq: 2.6, warp: 0.35, pore: 0.3, figure: 0.22, bump: 0.025, fiber: 0.25, bias: 0.2, lineAmount: 0.8, lateAmount: 0.3 },
+    { roughness: 0.42, clearcoat: 0.3, clearcoatRoughness: 0.32, envMapIntensity: 0.5, specularIntensity: 0.7 },
   );
   const lightWood = makeWood(
     // neck and heel: paler, straighter grain
@@ -112,8 +111,8 @@ export function createMaterials({ anisotropy = 8, manager } = {}) {
     { roughness: 0.28, clearcoat: 0.6, clearcoatRoughness: 0.2 },
   );
   const lip = makeWood(
-    // the pale, unvarnished wooden lip round the skin (R4)
-    { light: '#b8945f', dark: '#8c6b3c', line: '#6a4e2a', axis: [0, 9], freq: 2.4, warp: 0.6, pore: 0.4, figure: 0.4, bump: 0.02, fiber: 0.45 },
+    // the unvarnished wooden lip round the skin: warm brown-beige (R7), matte
+    { light: '#a8784c', dark: '#7c5432', line: '#5a3a20', axis: [0, 9], freq: 2.6, warp: 0.35, pore: 0.3, figure: 0.2, bump: 0.02, fiber: 0.35, lineAmount: 0.3 },
     { roughness: 0.68, clearcoat: 0 },
   );
   const cavity = new THREE.MeshStandardMaterial({ color: '#150c07', roughness: 0.95, side: THREE.DoubleSide });
@@ -139,10 +138,12 @@ export function createMaterials({ anisotropy = 8, manager } = {}) {
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', '#include <common>\nvarying vec2 vSkinPos;\nuniform sampler2D skinMask;\nuniform vec4 skinBounds;')
       .replace('#include <map_fragment>', `#include <map_fragment>
-        // glued border: darker, a little greasy, within a few millimetres of the wood
+        // R7: thin skin over the dark hollow reads slate-violet in the middle, lighter and
+        // warmer where it lies over the wooden lip
         float skinEdge = texture2D(skinMask, (vSkinPos - skinBounds.xy) / skinBounds.zw).r;
         float glue = 1.0 - smoothstep(0.55, 0.92, skinEdge);
-        diffuseColor.rgb *= mix(1.0, 0.68, glue);`)
+        float hollow = smoothstep(0.75, 1.0, skinEdge);
+        diffuseColor.rgb *= mix(vec3(1.08, 1.0, 0.94), vec3(0.5, 0.5, 0.6), hollow);`)
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
         roughnessFactor *= mix(1.0, 0.8, glue);`);
   };
