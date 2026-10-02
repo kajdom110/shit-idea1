@@ -459,6 +459,217 @@ def metal(name, colour, roughness):
     return m
 
 
+# ---------------------------------------------------------------- round 13: the user's samples
+# Materials rebuilt from the two sample sheets the user chose (docs/tar-3d/refs-chatgpt): dark,
+# glossy red-brown wood with long flame streaks and thin pale inlay lines along the bowls, a pale
+# maple neck, grey-brown marbled skin and a khatam border round it, on a charcoal studio sweep.
+class Nodes:
+    """Small helper for building node graphs."""
+    def __init__(self, nt):
+        self.nt = nt
+
+    def new(self, kind, **inputs):
+        n = self.nt.nodes.new(kind)
+        for k, v in inputs.items():
+            n.inputs[k].default_value = v
+        return n
+
+    def link(self, a, b):
+        self.nt.links.new(a, b)
+
+    def op(self, kind, x, y=None, z=None):
+        n = self.nt.nodes.new('ShaderNodeMath'); n.operation = kind
+        for i, v in enumerate((x, y, z)):
+            if v is None: continue
+            if isinstance(v, (int, float)): n.inputs[i].default_value = v
+            else: self.nt.links.new(v, n.inputs[i])
+        return n.outputs[0]
+
+    def grey(self, f):
+        c = self.nt.nodes.new('ShaderNodeCombineColor')
+        for k in ('Red', 'Green', 'Blue'): self.nt.links.new(f, c.inputs[k])
+        return c.outputs['Color']
+
+    def mix(self, fac, a, b, blend='MIX'):
+        m = self.nt.nodes.new('ShaderNodeMix'); m.data_type = 'RGBA'; m.blend_type = blend
+        for sock, v in (('Factor', fac), ('A', a), ('B', b)):
+            if isinstance(v, (int, float)): m.inputs[sock].default_value = v
+            elif isinstance(v, tuple): m.inputs[sock].default_value = v
+            else: self.nt.links.new(v, m.inputs[sock])
+        return m.outputs['Result']
+
+    def noise(self, vec, scale, detail=2.0, rough=0.5, distortion=0.0, stretch=None):
+        if stretch:
+            mp = self.new('ShaderNodeMapping'); mp.inputs['Scale'].default_value = stretch
+            self.link(vec, mp.inputs['Vector']); vec = mp.outputs['Vector']
+        n = self.new('ShaderNodeTexNoise', Scale=scale, Detail=detail, Roughness=rough, Distortion=distortion)
+        self.link(vec, n.inputs['Vector'])
+        return n
+
+    def ramp(self, fac, stops):
+        r = self.nt.nodes.new('ShaderNodeValToRGB'); cr = r.color_ramp
+        cr.elements[0].position, cr.elements[0].color = stops[0][0], srgb(stops[0][1])
+        cr.elements[1].position, cr.elements[1].color = stops[-1][0], srgb(stops[-1][1])
+        for pos, col in stops[1:-1]:
+            e = cr.elements.new(pos); e.color = srgb(col)
+        self.link(fac, r.inputs['Fac'])
+        return r.outputs['Color']
+
+
+ROSEWOOD = ('#0e0301', '#2e0b02', '#581a06', '#8c3410')  # deep, dark, mid, light (sample: mean 73 32 18)
+
+
+def rosewood(name, tones=ROSEWOOD, gloss=1.0, stripes=0, stripe_axis_y=0.0, stripe_top=1.0, scale=1.0):
+    """Dark red-brown wood with long, wavy flame streaks along the instrument (Blender z) and a
+    deep, glossy lacquer. stripes>0 adds that many thin pale inlay lines round the bowl's long
+    axis (one down the middle of the back), as on the samples."""
+    m, nt, bsdf = new_mat(name); g = Nodes(nt)
+    co = g.new('ShaderNodeTexCoord').outputs['Object']
+    # broad light and dark areas, long along the grain
+    broad = g.noise(co, 1.0, detail=2, rough=0.5, distortion=0.3, stretch=(7 * scale, 7 * scale, 0.9 * scale))
+    # the flame: tight wavy streaks, stretched along the grain and bent by the broad noise
+    warp = g.new('ShaderNodeVectorMath'); warp.operation = 'ADD'
+    wsc = g.new('ShaderNodeVectorMath'); wsc.operation = 'SCALE'; wsc.inputs['Scale'].default_value = 0.02
+    g.link(broad.outputs['Color'], wsc.inputs[0]); g.link(co, warp.inputs[0]); g.link(wsc.outputs[0], warp.inputs[1])
+    # (octaves of a noise grow finer along every axis alike, so each scale gets its own
+    # stretched noise: that keeps all of them long along the grain instead of mottled)
+    flame = g.noise(warp.outputs[0], 1.0, detail=1, rough=0.5, stretch=(110 * scale, 110 * scale, 1.2 * scale))
+    flame2 = g.noise(warp.outputs[0], 1.0, detail=1, rough=0.5, stretch=(380 * scale, 380 * scale, 3.0 * scale))
+    tone = g.op('ADD', g.op('MULTIPLY', flame.outputs['Fac'], 0.6), g.op('MULTIPLY', flame2.outputs['Fac'], 0.3))
+    tone = g.op('ADD', tone, g.op('MULTIPLY', broad.outputs['Fac'], 0.3))
+    tone = g.op('SUBTRACT', tone, 0.1)
+    col = g.ramp(tone, [(0.22, tones[0]), (0.4, tones[1]), (0.56, tones[2]), (0.72, tones[3])])
+    # fine fibres and pores
+    fib = g.noise(co, 1.0, detail=3, rough=0.6, stretch=(1200, 1200, 20))
+    col = g.mix(1.0, col, g.grey(g.op('ADD', 0.88, g.op('MULTIPLY', fib.outputs['Fac'], 0.24))), 'MULTIPLY')
+    if stripes:
+        sep = g.new('ShaderNodeSeparateXYZ'); g.link(co, sep.inputs[0])
+        theta = g.op('ARCTAN2', sep.outputs['X'], g.op('SUBTRACT', sep.outputs['Y'], stripe_axis_y))
+        f = g.op('FRACT', g.op('ADD', g.op('MULTIPLY', theta, stripes / (2 * math.pi)), 0.5))
+        dist = g.op('ABSOLUTE', g.op('SUBTRACT', f, 0.5))  # 0 on a line … 0.5 between lines
+        line = g.op('SUBTRACT', 1.0, g.op('SMOOTH_MIN', g.op('DIVIDE', dist, 0.006), 1.0, 0.2))
+        line = g.op('MAXIMUM', 0.0, g.op('MINIMUM', 1.0, line))
+        line = g.op('MULTIPLY', line, g.op('MINIMUM', 1.0, g.op('MAXIMUM', 0.0, g.op('DIVIDE', g.op('SUBTRACT', stripe_top, sep.outputs['Z']), 0.04))))
+        rad = g.op('SQRT', g.op('ADD', g.op('POWER', sep.outputs['X'], 2.0), g.op('POWER', g.op('SUBTRACT', sep.outputs['Y'], stripe_axis_y), 2.0)))
+        line = g.op('MULTIPLY', line, g.op('MINIMUM', 1.0, g.op('MAXIMUM', 0.0, g.op('DIVIDE', g.op('SUBTRACT', rad, 0.03), 0.03))))
+        col = g.mix(line, col, srgb('#dcc08e'))
+    g.link(col, bsdf.inputs['Base Color'])
+    bsdf.inputs['Roughness'].default_value = 0.42
+    bsdf.inputs['Specular IOR Level'].default_value = 0.5
+    bsdf.inputs['Coat Weight'].default_value = gloss
+    bsdf.inputs['Coat Roughness'].default_value = 0.11
+    bsdf.inputs['Coat IOR'].default_value = 1.5
+    bump = g.new('ShaderNodeBump', Strength=0.04, Distance=0.0004)
+    g.link(fib.outputs['Fac'], bump.inputs['Height']); g.link(bump.outputs['Normal'], bsdf.inputs['Normal'])
+    return m
+
+
+def maple(name, base='#e2c79a', streak='#c9a46e', gloss=0.35):
+    """Pale, close-grained neck wood (the samples' neck is cream with faint streaks)."""
+    m, nt, bsdf = new_mat(name); g = Nodes(nt)
+    co = g.new('ShaderNodeTexCoord').outputs['Object']
+    st = g.noise(co, 1.0, detail=4, rough=0.6, stretch=(400, 400, 8))
+    col = g.ramp(st.outputs['Fac'], [(0.3, base), (0.75, streak)])
+    g.link(col, bsdf.inputs['Base Color'])
+    bsdf.inputs['Roughness'].default_value = 0.45
+    bsdf.inputs['Coat Weight'].default_value = gloss; bsdf.inputs['Coat Roughness'].default_value = 0.2
+    return m
+
+
+def mesh_edge_map(objs, prefix, name, px_per_cm=20, max_cm=3.0):
+    """Distance from the edge of a flat part (in the front plane), as an image; see make_skin_edge_map."""
+    from PIL import Image, ImageDraw, ImageFilter
+    ob = [o for o in objs if o.name.startswith(prefix)][0]; me = ob.data
+    xs = [v.co.x for v in me.vertices]; zs = [v.co.z for v in me.vertices]
+    x0, z0 = min(xs) - 0.005, min(zs) - 0.005
+    w, h = max(xs) + 0.005 - x0, max(zs) + 0.005 - z0
+    W, H = round(w * 100 * px_per_cm), round(h * 100 * px_per_cm)
+    im = Image.new('L', (W, H), 0); dr = ImageDraw.Draw(im)
+    to_px = lambda v: ((v.co.x - x0) / w * W, (1 - (v.co.z - z0) / h) * H)
+    front = max(v.co.y for v in me.vertices)
+    for poly in me.polygons:
+        if abs(poly.normal.y) > 0.5:  # faces in the front plane only
+            dr.polygon([to_px(me.vertices[i]) for i in poly.vertices], fill=255)
+    steps = round(max_cm * px_per_cm); dist = Image.new('L', (W, H), 0); cur = im
+    for k in range(steps):
+        cur = cur.filter(ImageFilter.MinFilter(3))
+        dist.paste(round(255 * (k + 1) / steps), mask=cur)
+    dist = dist.filter(ImageFilter.GaussianBlur(1.0))
+    path = BUILD / f'{name}_edge.png'; dist.save(path)
+    return (path, x0, z0, w, h, max_cm)
+
+
+LIP_EDGE = None
+
+
+def edge_value(g, co, edge):
+    path, x0, z0, w, h = edge[:5]
+    sep = g.new('ShaderNodeSeparateXYZ'); g.link(co, sep.inputs[0])
+    uv = g.new('ShaderNodeCombineXYZ')
+    g.link(g.op('DIVIDE', g.op('SUBTRACT', sep.outputs['X'], x0), w), uv.inputs['X'])
+    g.link(g.op('DIVIDE', g.op('SUBTRACT', sep.outputs['Z'], z0), h), uv.inputs['Y'])
+    img = g.new('ShaderNodeTexImage'); img.image = bpy.data.images.load(str(path), check_existing=False)
+    img.image.colorspace_settings.name = 'Non-Color'; img.extension = 'EXTEND'
+    g.link(uv.outputs[0], img.inputs['Vector'])
+    return img.outputs['Color'], sep
+
+
+def khatam_lip():
+    """The border round the skin: a pale line on each side and, between them, a dark band of
+    small pale triangles pointing in (khatam), as on the samples."""
+    m, nt, bsdf = new_mat('lip'); g = Nodes(nt)
+    co = g.new('ShaderNodeTexCoord').outputs['Object']
+    ev, sep = edge_value(g, co, LIP_EDGE)
+    sc = g.new('ShaderNodeSeparateColor'); g.link(ev, sc.inputs['Color'])
+    d_cm = g.op('MULTIPLY', sc.outputs['Red'], LIP_EDGE[5])       # cm from the nearest edge
+    half = 0.95                                                   # the border is about 1.9 cm wide
+    across = g.op('MINIMUM', 1.0, g.op('DIVIDE', d_cm, half))     # 0 at an edge … 1 in the middle
+    pale = g.op('LESS_THAN', d_cm, 0.09)                          # the two pale lines
+    # along the band: a coordinate that keeps running round both curves of the outline
+    along = g.op('ADD', g.op('MULTIPLY', sep.outputs['X'], 260.0), g.op('MULTIPLY', sep.outputs['Z'], 260.0))
+    tri = g.op('MULTIPLY', g.op('ABSOLUTE', g.op('SUBTRACT', g.op('FRACT', along), 0.5)), 2.0)
+    tooth = g.op('LESS_THAN', g.op('DIVIDE', g.op('SUBTRACT', across, 0.2), 0.45), tri)
+    tooth = g.op('MULTIPLY', tooth, g.op('MULTIPLY', g.op('GREATER_THAN', across, 0.2), g.op('LESS_THAN', across, 0.65)))
+    col = g.mix(tooth, srgb('#1a0e08'), srgb('#cdbb98'))
+    col = g.mix(pale, col, srgb('#c9a874'))
+    g.link(col, bsdf.inputs['Base Color'])
+    bsdf.inputs['Roughness'].default_value = 0.35
+    bsdf.inputs['Coat Weight'].default_value = 0.8; bsdf.inputs['Coat Roughness'].default_value = 0.1
+    return m
+
+
+def parchment_skin():
+    """The samples' skin: grey-brown, matte, marbled with fine darker and lighter veins, a little
+    darker towards its glued edge."""
+    m, nt, bsdf = new_mat('skin'); g = Nodes(nt)
+    co = g.new('ShaderNodeTexCoord').outputs['Object']
+    marble = g.noise(co, 90.0, detail=10, rough=0.66, distortion=2.0)
+    base = g.ramp(marble.outputs['Fac'], [(0.3, '#4a4038'), (0.5, '#6a5f54'), (0.7, '#857767')])
+    # fine dark veins (cell edges of a warped Voronoi) and a lighter network between them
+    wv = g.new('ShaderNodeVectorMath'); wv.operation = 'SCALE'; wv.inputs['Scale'].default_value = 0.003
+    g.link(marble.outputs['Color'], wv.inputs[0])
+    wco = g.new('ShaderNodeVectorMath'); wco.operation = 'ADD'; g.link(co, wco.inputs[0]); g.link(wv.outputs[0], wco.inputs[1])
+    col = base
+    for scale, width, depth in ((90.0, 0.04, 0.25), (320.0, 0.05, 0.2)):
+        vo = g.new('ShaderNodeTexVoronoi', Scale=scale); vo.feature = 'DISTANCE_TO_EDGE'
+        g.link(wco.outputs[0], vo.inputs['Vector'])
+        line = g.op('SUBTRACT', 1.0, g.op('MINIMUM', g.op('DIVIDE', vo.outputs['Distance'], width), 1.0))
+        col = g.mix(1.0, col, g.grey(g.op('SUBTRACT', 1.0, g.op('MULTIPLY', line, depth))), 'MULTIPLY')
+    # darker where it is glued down at the edge
+    ev, _ = edge_value(g, co, SKIN_EDGE)
+    sc = g.new('ShaderNodeSeparateColor'); g.link(ev, sc.inputs['Color'])
+    edge = g.op('SUBTRACT', 1.0, g.op('MINIMUM', 1.0, g.op('DIVIDE', sc.outputs['Red'], 0.25)))
+    col = g.mix(g.op('MULTIPLY', edge, 0.45), col, srgb('#3d3128'))
+    g.link(col, bsdf.inputs['Base Color'])
+    micro = g.noise(co, 2500.0, detail=2)
+    h = g.op('ADD', micro.outputs['Fac'], g.op('MULTIPLY', marble.outputs['Fac'], 0.5))
+    bump = g.new('ShaderNodeBump', Strength=0.1, Distance=0.0003)
+    g.link(h, bump.inputs['Height']); g.link(bump.outputs['Normal'], bsdf.inputs['Normal'])
+    bsdf.inputs['Roughness'].default_value = 0.7
+    bsdf.inputs['Specular IOR Level'].default_value = 0.35
+    return m
+
+
 def build_materials():
     # the scanned ash, turned 90° so its grain runs vertically (along the instrument) in box projection
     rot = ASSETS / 'ash_veneer_diff_2k_rot.jpg'
@@ -497,12 +708,24 @@ def build_materials():
         'stringSteel': metal('stringSteel', '#d4d4d2', 0.25),
         'stringBronze': metal('stringBronze', '#b48848', 0.3),
     }
+    if os.environ.get('TAR_LOOK', 'samples') == 'samples':
+        # round 13: the look of the user's sample sheets
+        mats.update({
+            'wood': rosewood('rw_bowl', stripes=16, stripe_axis_y=0.0895, stripe_top=0.34),
+            'woodTop': rosewood('rw_top'),
+            'headWood': rosewood('rw_head', scale=2.0),
+            'pegWood': rosewood('rw_peg', tones=('#1e0904', '#40150a', '#6a2a12', '#8a4020'), scale=3.0),
+            'boardWood': rosewood('rw_board', tones=('#1a0703', '#33100a', '#561e0e', '#6e2a14'), scale=2.0),
+            'lightWood': maple('maple'),
+            'lip': khatam_lip(),
+            'skin': parchment_skin(),
+        })
     for o in bpy.context.scene.objects:
         if o.type != 'MESH':
             continue
         key = o.name.split('__')[-1].split('.')[0]
-        if o.name.startswith('body__top'):
-            key = 'woodTop'
+        if o.name.startswith('body__top') or o.name.startswith('heel__'):
+            key = 'woodTop'  # the flat face and the heel: same wood, no inlay lines
         o.data.materials.clear()
         o.data.materials.append(mats.get(key, mats['wood']))
 
@@ -521,11 +744,39 @@ def build_world(strength=1.0, rotation_deg=200):
     nt.links.new(tc.outputs['Generated'], mp.inputs['Vector']); nt.links.new(mp.outputs['Vector'], env.inputs['Vector'])
     room = nt.nodes.new('ShaderNodeBackground'); room.inputs['Strength'].default_value = strength
     nt.links.new(env.outputs['Color'], room.inputs['Color'])
-    dark = nt.nodes.new('ShaderNodeBackground'); dark.inputs['Color'].default_value = srgb('#0b0a09'); dark.inputs['Strength'].default_value = 1.0
+    dark = nt.nodes.new('ShaderNodeBackground'); dark.inputs['Strength'].default_value = 1.0
+    if os.environ.get('TAR_LOOK', 'samples') == 'samples':
+        # round 13: the samples' charcoal studio — near-black above, a slightly lighter grey floor
+        # where the camera looks down, with a faint texture so it is not a flat digital fill
+        g = Nodes(nt)
+        dirv = g.new('ShaderNodeSeparateXYZ'); g.link(tc.outputs['Generated'], dirv.inputs[0])
+        floor = g.new('ShaderNodeMapRange', **{'From Min': 0.05, 'From Max': -0.35})
+        floor.interpolation_type = 'SMOOTHSTEP'; g.link(dirv.outputs['Z'], floor.inputs['Value'])
+        tex = g.noise(tc.outputs['Generated'], 180.0, detail=4, rough=0.6)
+        base = g.mix(floor.outputs['Result'], srgb('#0f0f0f'), srgb('#232222'))
+        base = g.mix(1.0, base, g.grey(g.op('ADD', 0.9, g.op('MULTIPLY', tex.outputs['Fac'], 0.2))), 'MULTIPLY')
+        g.link(base, dark.inputs['Color'])
+    else:
+        dark.inputs['Color'].default_value = srgb('#0b0a09')
     lp = nt.nodes.new('ShaderNodeLightPath')
     mix = nt.nodes.new('ShaderNodeMixShader')
     nt.links.new(lp.outputs['Is Camera Ray'], mix.inputs['Fac'])
-    nt.links.new(room.outputs['Background'], mix.inputs[1]); nt.links.new(dark.outputs['Background'], mix.inputs[2])
+    lit = room.outputs['Background']
+    if os.environ.get('TAR_LOOK', 'samples') == 'samples':
+        # Round 13: in the high-gloss lacquer the HDRI's studio stands and fixtures showed as thin
+        # bright outlines. Reflections see a clean studio instead: a soft, slightly warm ceiling
+        # fading to a dark floor; the area lights give the broad softbox highlights.
+        g = Nodes(nt)
+        dz = g.new('ShaderNodeSeparateXYZ'); g.link(tc.outputs['Generated'], dz.inputs[0])
+        dome = g.new('ShaderNodeMapRange', **{'From Min': -0.2, 'From Max': 0.9})
+        dome.interpolation_type = 'SMOOTHSTEP'; g.link(dz.outputs['Z'], dome.inputs['Value'])
+        clean = g.new('ShaderNodeBackground', Strength=1.0)
+        g.link(g.mix(dome.outputs['Result'], (0.004, 0.004, 0.004, 1), (0.09, 0.08, 0.07, 1)), clean.inputs['Color'])
+        gm = g.new('ShaderNodeMixShader')
+        g.link(lp.outputs['Is Glossy Ray'], gm.inputs['Fac'])
+        g.link(room.outputs['Background'], gm.inputs[1]); g.link(clean.outputs['Background'], gm.inputs[2])
+        lit = gm.outputs['Shader']
+    nt.links.new(lit, mix.inputs[1]); nt.links.new(dark.outputs['Background'], mix.inputs[2])
     nt.links.new(mix.outputs['Shader'], out.inputs['Surface'])
 
 
@@ -564,7 +815,7 @@ def add_window_light():
     # while the instrument tips over (the skin above all) are not hit head-on; its glints on
     # the satin finish are toned down so they never burn a part of the instrument out.
     window = area('window', (-2.0, -0.8, 1.05), 1.1, 1.5, 230, (1.0, 0.93, 0.83))
-    window.data.specular_factor = 0.55
+    window.data.specular_factor = 0.3
     # the window frame: two crossing bars just in front of the glass, seen by the light only
     d = (target - window.location).normalized()
     for k, (sx, sy) in enumerate(((0.035, 1.6), (1.2, 0.035))):
@@ -578,8 +829,8 @@ def add_window_light():
     # the back light: still a touch hot on the edges, but larger, dimmer and lower than in
     # round 8 — when the tar tips over backwards its upturned faces look straight into it,
     # and the small bright one burnt the skin and top out (measured: 1% of the instrument)
-    rim = area('rim', (1.1, 1.6, 0.55), 0.8, 0.6, 75, (1.0, 0.9, 0.78))
-    rim.data.specular_factor = 0.45
+    rim = area('rim', (1.1, 1.6, 0.55), 0.8, 0.6, 45, (1.0, 0.9, 0.78))
+    rim.data.specular_factor = 0.12  # round 13: the glossy lacquer mirrored it as a pale patch
     # a black flag overhead, as photographers use: no light straight down onto upturned faces
     bpy.ops.mesh.primitive_plane_add(size=1, location=PIVOT + Vector((-0.2, 0, 1.6)))
     flag = bpy.context.object; flag.name = 'flag'; flag.scale = (2.2, 1.6, 1)
@@ -780,6 +1031,8 @@ def setup(width, height, samples):
     BODY_BACK = body_back
     global SKIN_EDGE
     SKIN_EDGE = make_skin_edge_map(objs)
+    global LIP_EDGE
+    LIP_EDGE = mesh_edge_map(objs, 'body__lip', 'lip', max_cm=1.0)
     build_materials()
     if os.environ.get('TAR_LIGHT', 'natural') == 'studio':
         build_world(); add_soft_key()  # rounds 1–7: soft, even studio light
