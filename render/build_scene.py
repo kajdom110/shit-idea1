@@ -794,16 +794,8 @@ def build_world(strength=1.0, rotation_deg=200):
     nt.links.new(env.outputs['Color'], room.inputs['Color'])
     dark = nt.nodes.new('ShaderNodeBackground'); dark.inputs['Strength'].default_value = 1.0
     if os.environ.get('TAR_LOOK', 'samples') == 'samples':
-        # round 13: the samples' charcoal studio — near-black above, a slightly lighter grey floor
-        # where the camera looks down, with a faint texture so it is not a flat digital fill
-        g = Nodes(nt)
-        dirv = g.new('ShaderNodeSeparateXYZ'); g.link(tc.outputs['Generated'], dirv.inputs[0])
-        floor = g.new('ShaderNodeMapRange', **{'From Min': 0.05, 'From Max': -0.35})
-        floor.interpolation_type = 'SMOOTHSTEP'; g.link(dirv.outputs['Z'], floor.inputs['Value'])
-        tex = g.noise(tc.outputs['Generated'], 180.0, detail=4, rough=0.6)
-        base = g.mix(floor.outputs['Result'], srgb('#0f0f0f'), srgb('#232222'))
-        base = g.mix(1.0, base, g.grey(g.op('ADD', 0.9, g.op('MULTIPLY', tex.outputs['Fac'], 0.2))), 'MULTIPLY')
-        g.link(base, dark.inputs['Color'])
+        # round 18 (user): a plain matte black background, nothing else in the frame
+        dark.inputs['Color'].default_value = (0, 0, 0, 1)
     else:
         dark.inputs['Color'].default_value = srgb('#0b0a09')
     lp = nt.nodes.new('ShaderNodeLightPath')

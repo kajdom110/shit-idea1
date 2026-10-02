@@ -71,8 +71,12 @@ def finish(img, seed=0, grain=1.0):
     soft = (np.asarray(n_img.filter(ImageFilter.GaussianBlur(0.6)), dtype=np.float32) - 128) / 40
     n = 0.5 * n + 0.5 * soft[..., None]
     lum = a @ np.array([0.2126, 0.7152, 0.0722], dtype=np.float32)
-    amount = grain * (0.010 + 0.016 * (1 - np.clip(lum, 0, 1)))[..., None]
+    # (round 18: none on the matte black background — grain lives in the lit instrument only)
+    amount = grain * (0.010 + 0.016 * (1 - np.clip(lum, 0, 1))) * np.clip((lum - 0.01) / 0.05, 0, 1)
+    amount = amount[..., None]
     a = a + n * amount
+    # the background stays an even, matte black (no dither of near-black values)
+    a = np.where(a < 0.006, 0.0, a)
 
     return Image.fromarray((np.clip(a, 0, 1) * 255 + 0.5).astype(np.uint8))
 
