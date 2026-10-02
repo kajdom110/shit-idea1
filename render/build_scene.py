@@ -519,7 +519,7 @@ class Nodes:
 ROSEWOOD = ('#0e0301', '#2e0b02', '#581a06', '#8c3410')  # deep, dark, mid, light (sample: mean 73 32 18)
 
 
-def rosewood(name, tones=ROSEWOOD, gloss=1.0, stripes=0, stripe_axis_y=0.0, stripe_top=1.0, scale=1.0, spec=0.5, rough=0.42):
+def rosewood(name, tones=ROSEWOOD, gloss=1.0, stripes=0, stripe_axis_y=0.0, stripe_top=1.0, scale=1.0, spec=0.5, rough=0.42, wave=0.02, coat_rough=0.11):
     """Dark red-brown wood with long, wavy flame streaks along the instrument (Blender z) and a
     deep, glossy lacquer. stripes>0 adds that many thin pale inlay lines round the bowl's long
     axis (one down the middle of the back), as on the samples."""
@@ -529,7 +529,7 @@ def rosewood(name, tones=ROSEWOOD, gloss=1.0, stripes=0, stripe_axis_y=0.0, stri
     broad = g.noise(co, 1.0, detail=2, rough=0.5, distortion=0.3, stretch=(7 * scale, 7 * scale, 0.9 * scale))
     # the flame: tight wavy streaks, stretched along the grain and bent by the broad noise
     warp = g.new('ShaderNodeVectorMath'); warp.operation = 'ADD'
-    wsc = g.new('ShaderNodeVectorMath'); wsc.operation = 'SCALE'; wsc.inputs['Scale'].default_value = 0.02
+    wsc = g.new('ShaderNodeVectorMath'); wsc.operation = 'SCALE'; wsc.inputs['Scale'].default_value = wave
     g.link(broad.outputs['Color'], wsc.inputs[0]); g.link(co, warp.inputs[0]); g.link(wsc.outputs[0], warp.inputs[1])
     # (octaves of a noise grow finer along every axis alike, so each scale gets its own
     # stretched noise: that keeps all of them long along the grain instead of mottled)
@@ -557,7 +557,7 @@ def rosewood(name, tones=ROSEWOOD, gloss=1.0, stripes=0, stripe_axis_y=0.0, stri
     bsdf.inputs['Roughness'].default_value = rough
     bsdf.inputs['Specular IOR Level'].default_value = spec
     bsdf.inputs['Coat Weight'].default_value = gloss
-    bsdf.inputs['Coat Roughness'].default_value = 0.11
+    bsdf.inputs['Coat Roughness'].default_value = coat_rough
     bsdf.inputs['Coat IOR'].default_value = 1.5
     bump = g.new('ShaderNodeBump', Strength=0.04, Distance=0.0004)
     g.link(fib.outputs['Fac'], bump.inputs['Height']); g.link(bump.outputs['Normal'], bsdf.inputs['Normal'])
@@ -616,7 +616,9 @@ def edge_value(g, co, edge):
 
 def khatam_lip():
     """The border round the skin: a pale line on each side and, between them, a dark band of
-    small pale triangles pointing in (khatam), as on the samples."""
+    small pale triangles pointing in (khatam), as on the samples. Round 17: the teeth follow
+    the curve of each bowl (they slanted across it before), and each tooth is a separate little
+    piece of bone, a touch different in colour and size, with a hair of dark glue between."""
     m, nt, bsdf = new_mat('lip'); g = Nodes(nt)
     co = g.new('ShaderNodeTexCoord').outputs['Object']
     ev, sep = edge_value(g, co, LIP_EDGE)
@@ -624,49 +626,90 @@ def khatam_lip():
     d_cm = g.op('MULTIPLY', sc.outputs['Red'], LIP_EDGE[5])       # cm from the nearest edge
     half = 0.95                                                   # the border is about 1.9 cm wide
     across = g.op('MINIMUM', 1.0, g.op('DIVIDE', d_cm, half))     # 0 at an edge … 1 in the middle
-    pale = g.op('LESS_THAN', d_cm, 0.06)                          # the two pale lines
-    # along the band: a coordinate that keeps running round both curves of the outline
-    along = g.op('ADD', g.op('MULTIPLY', sep.outputs['X'], 260.0), g.op('MULTIPLY', sep.outputs['Z'], 260.0))
-    tri = g.op('MULTIPLY', g.op('ABSOLUTE', g.op('SUBTRACT', g.op('FRACT', along), 0.5)), 2.0)
-    # small triangles: at a distance the band must read dark with a fine pale pattern
-    tooth = g.op('LESS_THAN', g.op('DIVIDE', g.op('SUBTRACT', across, 0.3), 0.35), g.op('MULTIPLY', tri, 0.8))
-    tooth = g.op('MULTIPLY', tooth, g.op('MULTIPLY', g.op('GREATER_THAN', across, 0.3), g.op('LESS_THAN', across, 0.62)))
-    col = g.mix(tooth, srgb('#160b06'), srgb('#bfae8c'))
-    col = g.mix(pale, col, srgb('#b08f5e'))
+    pale = g.op('LESS_THAN', d_cm, 0.07)                          # the two pale lines
+    # along the band: the angle round the centre of each bowl's skin, scaled to one tooth per 3.5 mm
+    upper = g.op('GREATER_THAN', sep.outputs['Z'], 0.228)
+    cz = g.op('ADD', 0.13, g.op('MULTIPLY', upper, 0.31 - 0.13))
+    rad = g.op('ADD', 0.075, g.op('MULTIPLY', upper, 0.055 - 0.075))
+    theta = g.op('ARCTAN2', sep.outputs['X'], g.op('SUBTRACT', sep.outputs['Z'], cz))
+    along = g.op('DIVIDE', g.op('MULTIPLY', theta, rad), 0.0035)
+    piece = g.op('FLOOR', along)
+    wn = g.new('ShaderNodeTexWhiteNoise'); wn.noise_dimensions = '2D'
+    vec = g.new('ShaderNodeCombineXYZ'); g.link(piece, vec.inputs['X']); g.link(upper, vec.inputs['Y'])
+    g.link(vec.outputs[0], wn.inputs['Vector'])
+    jit = wn.outputs['Value']
+    f = g.op('FRACT', along)
+    tri = g.op('MULTIPLY', g.op('ABSOLUTE', g.op('SUBTRACT', f, 0.5)), 2.0)
+    v = g.op('DIVIDE', g.op('SUBTRACT', across, 0.28), g.op('ADD', 0.34, g.op('MULTIPLY', jit, 0.05)))
+    tooth = g.op('LESS_THAN', v, g.op('SUBTRACT', g.op('MULTIPLY', tri, 0.85), 0.04))
+    tooth = g.op('MULTIPLY', tooth, g.op('MULTIPLY', g.op('GREATER_THAN', across, 0.28), g.op('LESS_THAN', across, 0.64)))
+    bone = g.mix(jit, srgb('#c4b392'), srgb('#d8cba9'))
+    col = g.mix(tooth, srgb('#170c07'), bone)
+    col = g.mix(pale, col, srgb('#b9975f'))
+    # a little wear and grime over the whole band
+    grime = g.noise(co, 900.0, detail=3)
+    col = g.mix(1.0, col, g.grey(g.op('ADD', 0.85, g.op('MULTIPLY', grime.outputs['Fac'], 0.25))), 'MULTIPLY')
     g.link(col, bsdf.inputs['Base Color'])
-    bsdf.inputs['Roughness'].default_value = 0.35
-    bsdf.inputs['Coat Weight'].default_value = 0.8; bsdf.inputs['Coat Roughness'].default_value = 0.1
+    bump = g.new('ShaderNodeBump', Strength=0.15, Distance=0.0002)
+    g.link(g.op('ADD', tooth, g.op('MULTIPLY', grime.outputs['Fac'], 0.3)), bump.inputs['Height'])
+    g.link(bump.outputs['Normal'], bsdf.inputs['Normal'])
+    bsdf.inputs['Roughness'].default_value = 0.4
+    bsdf.inputs['Coat Weight'].default_value = 0.6; bsdf.inputs['Coat Roughness'].default_value = 0.16
     return m
 
 
 def parchment_skin():
-    """The samples' skin: grey-brown, matte, marbled with fine darker and lighter veins, a little
-    darker towards its glued edge."""
+    """The samples' skin: grey-brown, matte, with soft cloudy patches, a sparse web of fine dark
+    veins and the fibre of real hide. Round 17: the swirled marble read as a printed pattern up
+    close; the fibre now comes from a scanned paper (ambientCG Paper006, CC0) and the pattern
+    is broken up into clouds and veins that come and go."""
     m, nt, bsdf = new_mat('skin'); g = Nodes(nt)
     co = g.new('ShaderNodeTexCoord').outputs['Object']
-    marble = g.noise(co, 90.0, detail=10, rough=0.66, distortion=2.0)
-    base = g.ramp(marble.outputs['Fac'], [(0.3, '#4a4038'), (0.5, '#6a5f54'), (0.7, '#857767')])
-    # fine dark veins (cell edges of a warped Voronoi) and a lighter network between them
-    wv = g.new('ShaderNodeVectorMath'); wv.operation = 'SCALE'; wv.inputs['Scale'].default_value = 0.003
-    g.link(marble.outputs['Color'], wv.inputs[0])
+    # scanned fibre, as a brightness factor round 1 (its own brown colour is not used)
+    mp = g.new('ShaderNodeMapping'); mp.inputs['Scale'].default_value = (4.0, 4.0, 4.0)
+    g.link(co, mp.inputs['Vector'])
+    fib = image(nt, ASSETS / 'Paper006/Paper006_2K-JPG_Color.jpg'); fib.projection = 'BOX'; fib.projection_blend = 0.2
+    g.link(mp.outputs['Vector'], fib.inputs['Vector'])
+    fbw = g.new('ShaderNodeRGBToBW'); g.link(fib.outputs['Color'], fbw.inputs['Color'])
+    fibre = g.op('ADD', 0.5, g.op('MULTIPLY', g.op('DIVIDE', fbw.outputs['Val'], 0.42), 0.5))
+    # broad clouds: lighter, slightly yellower patches where the hide is thinner
+    cloud = g.noise(co, 9.0, detail=4, rough=0.6)
+    cl = g.new('ShaderNodeMapRange', **{'From Min': 0.35, 'From Max': 0.7}); cl.interpolation_type = 'SMOOTHSTEP'
+    g.link(cloud.outputs['Fac'], cl.inputs['Value'])
+    base = g.mix(cl.outputs['Result'], srgb('#564b41'), srgb('#8a7c6a'))
+    # medium mottling
+    mot = g.noise(co, 40.0, detail=5, rough=0.55)
+    col = g.mix(1.0, base, g.grey(g.op('ADD', 0.85, g.op('MULTIPLY', mot.outputs['Fac'], 0.3))), 'MULTIPLY')
+    col = g.mix(1.0, col, g.grey(fibre), 'MULTIPLY')
+    # veins: warped cell edges, only where a slow noise lets them through
+    wv = g.new('ShaderNodeVectorMath'); wv.operation = 'SCALE'; wv.inputs['Scale'].default_value = 0.006
+    g.link(mot.outputs['Color'], wv.inputs[0])
     wco = g.new('ShaderNodeVectorMath'); wco.operation = 'ADD'; g.link(co, wco.inputs[0]); g.link(wv.outputs[0], wco.inputs[1])
-    col = base
-    for scale, width, depth in ((90.0, 0.04, 0.25), (320.0, 0.05, 0.2)):
+    gate = g.noise(co, 14.0, detail=2)
+    gate_v = g.new('ShaderNodeMapRange', **{'From Min': 0.45, 'From Max': 0.65}); g.link(gate.outputs['Fac'], gate_v.inputs['Value'])
+    veins = None
+    for scale, width, depth in ((55.0, 0.025, 0.35), (170.0, 0.03, 0.22)):
         vo = g.new('ShaderNodeTexVoronoi', Scale=scale); vo.feature = 'DISTANCE_TO_EDGE'
         g.link(wco.outputs[0], vo.inputs['Vector'])
         line = g.op('SUBTRACT', 1.0, g.op('MINIMUM', g.op('DIVIDE', vo.outputs['Distance'], width), 1.0))
+        line = g.op('MULTIPLY', line, gate_v.outputs['Result'])
         col = g.mix(1.0, col, g.grey(g.op('SUBTRACT', 1.0, g.op('MULTIPLY', line, depth))), 'MULTIPLY')
+        veins = line if veins is None else g.op('ADD', veins, line)
     # darker where it is glued down at the edge
     ev, _ = edge_value(g, co, SKIN_EDGE)
     sc = g.new('ShaderNodeSeparateColor'); g.link(ev, sc.inputs['Color'])
     edge = g.op('SUBTRACT', 1.0, g.op('MINIMUM', 1.0, g.op('DIVIDE', sc.outputs['Red'], 0.25)))
-    col = g.mix(g.op('MULTIPLY', edge, 0.45), col, srgb('#3d3128'))
+    col = g.mix(g.op('MULTIPLY', edge, 0.45), col, srgb('#3a2f26'))
     g.link(col, bsdf.inputs['Base Color'])
-    micro = g.noise(co, 2500.0, detail=2)
-    h = g.op('ADD', micro.outputs['Fac'], g.op('MULTIPLY', marble.outputs['Fac'], 0.5))
-    bump = g.new('ShaderNodeBump', Strength=0.1, Distance=0.0003)
+    disp = image(nt, ASSETS / 'Paper006/Paper006_2K-JPG_Displacement.jpg', colour=False); disp.projection = 'BOX'
+    g.link(mp.outputs['Vector'], disp.inputs['Vector'])
+    h = g.op('ADD', disp.outputs['Color'] if False else g.new('ShaderNodeRGBToBW').outputs[0], 0.0)
+    dbw = [n for n in nt.nodes if n.type == 'RGBTOBW'][-1]; g.link(disp.outputs['Color'], dbw.inputs['Color'])
+    h = g.op('ADD', dbw.outputs['Val'], g.op('MULTIPLY', veins, 0.4))
+    bump = g.new('ShaderNodeBump', Strength=0.12, Distance=0.0003)
     g.link(h, bump.inputs['Height']); g.link(bump.outputs['Normal'], bsdf.inputs['Normal'])
-    bsdf.inputs['Roughness'].default_value = 0.7
+    rough = g.new('ShaderNodeMapRange', **{'To Min': 0.62, 'To Max': 0.78}); g.link(mot.outputs['Fac'], rough.inputs['Value'])
+    g.link(rough.outputs['Result'], bsdf.inputs['Roughness'])
     bsdf.inputs['Specular IOR Level'].default_value = 0.35
     return m
 
@@ -712,14 +755,16 @@ def build_materials():
     if os.environ.get('TAR_LOOK', 'samples') == 'samples':
         # round 13: the look of the user's sample sheets
         mats.update({
-            'wood': rosewood('rw_bowl', stripes=16, stripe_axis_y=0.0895, stripe_top=0.34),
-            'woodTop': rosewood('rw_top'),
+            'wood': rosewood('rw_bowl', stripes=16, stripe_axis_y=0.0895, stripe_top=0.34, coat_rough=0.15),
+            # the flat face: wavier figure (it read as ruled stripes up close) and a softer sheen
+            'woodTop': rosewood('rw_top', wave=0.06, coat_rough=0.2),
             # the head's flat front faces the window squarely in the opening scenes and mirrored
             # it as a pale grey slab: a softer, satin finish keeps it dark red-brown
             'headWood': rosewood('rw_head', scale=2.0, gloss=0.0, spec=0.15, rough=0.6),
             'pegWood': rosewood('rw_peg', tones=('#1e0904', '#40150a', '#6a2a12', '#8a4020'), scale=3.0),
             'boardWood': rosewood('rw_board', tones=('#1a0703', '#33100a', '#561e0e', '#6e2a14'), scale=2.0),
-            'lightWood': maple('maple'),
+            # round 17: the neck back is the body's wood; only the fingerboard face is pale
+            'lightWood': rosewood('rw_neck', scale=1.5),
             'lip': khatam_lip(),
             'skin': parchment_skin(),
         })
