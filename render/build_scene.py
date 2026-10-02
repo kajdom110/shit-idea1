@@ -379,6 +379,34 @@ def add_soft_key():
     return key
 
 
+def add_window_light():
+    """Natural, imperfect light, as in a photo taken by a window (round 8): one big window up
+    and to the left whose frame casts soft bar shadows, a darker room, a warm bounce from a
+    wooden table on the right, and a small back light that runs a little hot on the edges.
+    The lights stay fixed while the instrument turns, so its light changes as a real one would."""
+    target = PIVOT + Vector((0, 0, 0.05))
+    def area(name, loc, size, size_y, energy, colour):
+        bpy.ops.object.light_add(type='AREA', location=loc)
+        l = bpy.context.object; l.name = name
+        l.data.shape = 'RECTANGLE'; l.data.size = size; l.data.size_y = size_y
+        l.data.energy = energy; l.data.color = colour
+        l.rotation_euler = (target - l.location).normalized().to_track_quat('-Z', 'Y').to_euler()
+        return l
+    window = area('window', (-1.7, -1.1, 1.75), 1.1, 1.5, 230, (1.0, 0.93, 0.83))
+    # the window frame: two crossing bars just in front of the glass, seen by the light only
+    d = (target - window.location).normalized()
+    for k, (sx, sy) in enumerate(((0.035, 1.6), (1.2, 0.035))):
+        bpy.ops.mesh.primitive_plane_add(size=1, location=window.location + d * 0.12)
+        bar = bpy.context.object; bar.name = f'window_bar{k}'
+        bar.scale = (sx, sy, 1); bar.rotation_euler = window.rotation_euler
+        bar.visible_camera = False; bar.visible_glossy = False
+        # off-centre, as a real window never lines up with the subject
+        bar.location += window.matrix_world.to_3x3() @ Vector((0.12, -0.18, 0))
+    area('bounce', (1.4, -0.9, -0.35), 1.6, 1.0, 45, (1.0, 0.78, 0.55))
+    area('rim', (1.0, 1.5, 1.2), 0.35, 0.35, 140, (1.0, 0.9, 0.78))
+    return window
+
+
 def add_camera():
     cam_data = bpy.data.cameras.new('camera')
     cam_data.sensor_fit = 'VERTICAL'
@@ -462,16 +490,28 @@ def setup(width, height, samples):
     sc.render.image_settings.file_format = 'PNG'
     pivot, _ = import_model()
     build_materials()
-    build_world()
-    add_soft_key()
+    if os.environ.get('TAR_LIGHT', 'natural') == 'studio':
+        build_world(); add_soft_key()  # rounds 1–7: soft, even studio light
+    else:
+        build_world(strength=0.25); add_window_light()
     cam = add_camera()
     return sc, pivot, cam
 
 
-def render(sc, path):
-    sc.render.filepath = str(path)
+def render(sc, path, seed=0, raw_dir=None):
+    """Renders one frame; unless TAR_FINISH=0, the photographic flaws of photo_finish.py are
+    added and the untouched render is kept in raw_dir (or next to it, as *_raw.png)."""
+    raw = (raw_dir / path.name) if raw_dir else path.with_name(path.stem + '_raw.png')
+    raw.parent.mkdir(parents=True, exist_ok=True)
+    sc.render.filepath = str(raw)
     t = time.time()
     bpy.ops.render.render(write_still=True)
+    if os.environ.get('TAR_FINISH', '1') != '0':
+        from PIL import Image
+        import photo_finish
+        photo_finish.finish(Image.open(raw), seed).save(path)
+    else:
+        raw.replace(path)
     print(f'rendered {path.name} in {time.time() - t:.1f}s', flush=True)
 
 
@@ -482,7 +522,7 @@ def main(argv):
         out = BUILD / os.environ.get('TAR_TEST_DIR', 'test'); out.mkdir(parents=True, exist_ok=True)
         for k in SCENES['keyframes'][1:]:
             apply_pose(pivot, cam, k['yaw'], k['pitch'], k['target'], k['dist'], k['elev'], k.get('aperture', 0))
-            render(sc, out / f"scene_{k['caption']}.png")
+            render(sc, out / f"scene_{k['caption']}.png", seed=k['caption'], raw_dir=out / 'raw')
     elif mode == 'scroll':
         start, end = int(argv[1]), int(argv[2])
         total = int(argv[3]) if len(argv) > 3 else 240
@@ -493,7 +533,7 @@ def main(argv):
             if path.exists():
                 continue  # resumable: frames already rendered are kept
             apply_state(pivot, cam, sample_scroll(f / (total - 1)))
-            render(sc, path)
+            render(sc, path, seed=f, raw_dir=HERE / 'frames_raw' / 'scroll_raw')
     elif mode == 'sheet':
         sc, pivot, cam = setup(1200, 900, 64)
         out = HERE / 'frames_raw' / 'sheet'; out.mkdir(parents=True, exist_ok=True)
@@ -504,7 +544,7 @@ def main(argv):
                 if path.exists():
                     continue
                 apply_pose(pivot, cam, yaw, pitch, [c['x'], c['y'], c['z']], 250, 0)
-                render(sc, path)
+                render(sc, path, seed=10000 + yaw * 10 + pitch, raw_dir=HERE / 'frames_raw' / 'sheet_raw')
 
 
 if __name__ == '__main__':
