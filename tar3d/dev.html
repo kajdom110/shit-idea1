@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>تار سه‌بعدی — صفحه‌ی توسعه</title>
+  <style>
+    :root { --bg: #0d0c0b; --panel: rgba(24, 21, 19, 0.85); --line: rgba(232, 214, 190, 0.18); --fg: #efe5d8; --muted: #a39587; --accent: #d39a62; color-scheme: dark; }
+    html, body { height: 100%; margin: 0; background: var(--bg); color: var(--fg); font-family: Vazirmatn, Tahoma, sans-serif; overflow: hidden; }
+    #stage { position: fixed; inset: 0; }
+    #stage canvas { display: block; width: 100%; height: 100%; }
+    .panel { position: fixed; top: 16px; right: 16px; width: 15rem; max-height: calc(100% - 32px); overflow: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; font-size: 13px; }
+    .panel h1 { margin: 0 0 8px; font-size: 15px; }
+    .panel h2 { margin: 12px 0 6px; font-size: 12px; color: var(--muted); font-weight: 600; letter-spacing: 0.02em; }
+    .panel label { display: flex; align-items: center; gap: 6px; padding: 2px 0; }
+    .panel button { font: inherit; color: var(--fg); background: transparent; border: 1px solid var(--line); border-radius: 7px; padding: 4px 8px; cursor: pointer; }
+    .panel button:focus-visible, .panel input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+    .views { display: flex; flex-wrap: wrap; gap: 4px; }
+    table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; direction: ltr; font-size: 11px; }
+    td { padding: 2px 0; color: var(--muted); }
+    td:first-child { color: var(--fg); }
+  </style>
+  <script type="importmap">
+    { "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    } }
+  </script>
+</head>
+<body>
+  <div id="stage"></div>
+  <aside class="panel">
+    <h1>تار — صفحه‌ی توسعه</h1>
+    <h2>نما</h2>
+    <div class="views">
+      <button type="button" data-view="front">روبه‌رو</button>
+      <button type="button" data-view="side">پهلو</button>
+      <button type="button" data-view="back">پشت</button>
+      <button type="button" data-view="top">بالا</button>
+      <button type="button" data-view="bottom">پایین</button>
+    </div>
+    <h2>نمایش</h2>
+    <label><input type="checkbox" id="wire"> نمای سیمی</label>
+    <label><input type="checkbox" id="grid" checked> شبکه‌ی ۱۰ سانتی‌متری</label>
+    <label><input type="checkbox" id="axes"> محورها</label>
+    <label><input type="checkbox" id="boxes"> جعبه‌ی دور قطعه‌ها</label>
+    <h2>قطعه‌ها</h2>
+    <div id="partList"></div>
+    <h2>اندازه‌ی قطعه‌ها (سانتی‌متر)</h2>
+    <table id="sizes"></table>
+  </aside>
+  <script type="module" src="./dev.js"></script>
+</body>
+</html>
