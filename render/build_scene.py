@@ -202,7 +202,7 @@ def ring_wood(name, light, mid, line, axis_cm, tilt, rings_per_cm, roughness, wa
     # a few tenths of a millimetre of ragged edge
     jit = N('ShaderNodeTexNoise'); jit.inputs['Scale'].default_value = 600.0; jit.inputs['Detail'].default_value = 0.0
     nt.links.new(tilt_m.outputs['Vector'], jit.inputs['Vector'])
-    years = op('ADD', years, op('MULTIPLY', op('SUBTRACT', jit.outputs['Fac'], 0.5), 0.08 / (1 + 2 * irregular)))
+    years = op('ADD', years, op('MULTIPLY', op('SUBTRACT', jit.outputs['Fac'], 0.5), 0.03 / (1 + 2 * irregular)))
     ring = op('FRACT', years)
     ramp_n = nt.nodes.new('ShaderNodeValToRGB')
     cr = ramp_n.color_ramp
@@ -460,7 +460,29 @@ def ease(t):
     return u * u * u * (u * (u * 6 - 15) + 10)
 
 
-def sample_scroll(p):
+# The scroll timeline (round 10): the seven scenes, then the tar falls over backwards about a
+# hinge near its bottom end, and the rest of the scroll zooms in on its face.
+TIMELINE = {
+    'scenes_end': 0.60,   # the seven scenes play over 0…60 % of the scroll
+    'fall': (0.62, 0.80),  # it falls over here…
+    'zoom_end': 1.0,       # …and the camera comes down onto the face until the end
+    # the hinge: on the back of the bowl, this many cm from the bottom end (TAR_HINGE_CM)
+    'hinge_cm': float(os.environ.get('TAR_HINGE_CM', '10')),
+    'fall_deg': 90,
+    'crane_elev': 40,      # the camera rises while it falls, so it never sees it edge-on
+    'face': [0, 15, 0.4],  # the point of the face the zoom ends on (web cm)
+    'face_dist': 70, 'face_elev': 78,
+}
+BODY_BACK = None  # depth of the back of the bowl by height, read from the mesh in setup()
+
+
+def hinge_local():
+    y = TIMELINE['hinge_cm']
+    return web_to_blender((0, y, BODY_BACK(y)))
+
+
+def keyframe_state(p):
+    """The seven web scenes, as before (p in 0…1 of their own span)."""
     kf = SCENES['keyframes']
     i = 0
     while i < len(kf) - 2 and p > kf[i + 1]['at']:
@@ -469,23 +491,80 @@ def sample_scroll(p):
     t = ease((p - a['at']) / (b['at'] - a['at']))
     qa, qb = pose_quaternion(a['yaw'], a['pitch']), pose_quaternion(b['yaw'], b['pitch'])
     lerp = lambda x, y: x + (y - x) * t
+    q = qa.slerp(qb, t)
+    world = Matrix.Translation(PIVOT) @ q.to_matrix().to_4x4() @ Matrix.Translation(-PIVOT)
+    target = world @ web_to_blender([lerp(x, y) for x, y in zip(a['target'], b['target'])])
+    e = math.radians(lerp(a['elev'], b['elev']))
+    d = math.exp(lerp(math.log(a['dist']), math.log(b['dist']))) * CM
     return {
-        'q': qa.slerp(qb, t),
-        'target': [lerp(x, y) for x, y in zip(a['target'], b['target'])],
-        'dist': math.exp(lerp(math.log(a['dist']), math.log(b['dist']))),
-        'elev': lerp(a['elev'], b['elev']),
+        'q': q, 'world': world, 'target': target,
+        'cam': target + Vector((0, -math.cos(e) * d, math.sin(e) * d)),
         'exposure': lerp(a['exposure'], b['exposure']),
         'aperture': lerp(a.get('aperture', 0), b.get('aperture', 0)),
     }
 
 
+def fall_angle(t):
+    """Degrees fallen at t (0…1): gravity speeds it up, it lands a hair past flat and settles."""
+    full = TIMELINE['fall_deg']
+    if t < 0.82:
+        return full * 1.02 * (t / 0.82) ** 2
+    u = (t - 0.82) / 0.18
+    return full * (1.02 - 0.02 * (1 - math.cos(math.pi * u)) / 2)
+
+
+def sample_scroll(p):
+    T = TIMELINE
+    if p <= T['scenes_end']:
+        return keyframe_state(p / T['scenes_end'])
+    end = keyframe_state(1.0)
+    q0, w0 = end['q'], end['world']
+    h = w0 @ hinge_local()
+    axis = q0 @ Vector((1, 0, 0))
+    centre_local = PIVOT
+    f0, f1 = T['fall']
+
+    def fallen(deg):
+        r = Quaternion(axis, -math.radians(deg)).to_matrix().to_4x4()
+        return Matrix.Translation(h) @ r @ Matrix.Translation(-h) @ w0
+
+    def orbit(target, dist_m, elev_deg):
+        e = math.radians(elev_deg)
+        return target + Vector((0, -math.cos(e) * dist_m, math.sin(e) * dist_m))
+
+    start_dist = (end['cam'] - end['target']).length
+    start_elev = math.degrees(math.asin(max(-1, min(1, (end['cam'] - end['target']).z / start_dist))))
+    if p <= f0:  # a breath of stillness before it goes
+        return end
+    if p <= f1:
+        t = (p - f0) / (f1 - f0)
+        world = fallen(fall_angle(t))
+        # the operator half follows the falling instrument and cranes up
+        target = end['target'].lerp(world @ centre_local, 0.5 * ease(t))
+        cam = orbit(target, start_dist, start_elev + (T['crane_elev'] - start_elev) * ease(t))
+        return {'world': world, 'target': target, 'cam': cam, 'exposure': 1.0, 'aperture': 0.0}
+    t = ease((p - f1) / (T['zoom_end'] - f1))
+    world = fallen(T['fall_deg'])
+    flat_target = end['target'].lerp(world @ centre_local, 0.5)
+    target = flat_target.lerp(world @ web_to_blender(T['face']), t)
+    dist = math.exp(math.log(start_dist) + (math.log(T['face_dist'] * CM) - math.log(start_dist)) * t)
+    cam = orbit(target, dist, T['crane_elev'] + (T['face_elev'] - T['crane_elev']) * t)
+    # the camera turns as it comes down so the instrument ends upright in the frame, head at the top
+    head = (world.to_3x3() @ Vector((0, 0, 1))).normalized()
+    up = Vector((0, 0, 1)).lerp(head, t).normalized()
+    return {'world': world, 'target': target, 'cam': cam, 'exposure': 1.0, 'aperture': 0.0003 * t, 'up': up}
+
+
 def apply_state(pivot, cam, s):
-    pivot.rotation_mode = 'QUATERNION'
-    pivot.rotation_quaternion = s['q']
-    t = PIVOT + s['q'] @ (web_to_blender(s['target']) - PIVOT)
-    e = math.radians(s['elev']); d = s['dist'] * CM
-    cam.location = t + Vector((0, -math.cos(e) * d, math.sin(e) * d))
-    cam.rotation_euler = (t - cam.location).to_track_quat('-Z', 'Y').to_euler()
+    # the pivot carries every part with a parent inverse of T(-PIVOT): child = pivot · T(-PIVOT)
+    pivot.matrix_world = s['world'] @ Matrix.Translation(PIVOT)
+    t = s['target']
+    cam.location = s['cam']
+    f = (t - cam.location).normalized()
+    up_hint = s.get('up', Vector((0, 0, 1)))
+    right = f.cross(up_hint).normalized()
+    up = right.cross(f)
+    cam.rotation_euler = Matrix((right, up, -f)).transposed().to_euler()
     cam.data.dof.use_dof = True
     cam.data.dof.focus_distance = (t - cam.location).length
     cam.data.dof.aperture_fstop = 16 - (16 - 5.6) * min(1.0, s['aperture'] / 0.0003)
@@ -500,7 +579,13 @@ def setup(width, height, samples):
     sc.render.resolution_percentage = 100
     sc.cycles.samples = samples
     sc.render.image_settings.file_format = 'PNG'
-    pivot, _ = import_model()
+    pivot, objs = import_model()
+    global BODY_BACK
+    shell = [v.co for o in objs if o.name.startswith('body__shell') for v in o.data.vertices]
+    def body_back(y_cm):
+        near = [-c.y / CM for c in shell if abs(c.z / CM - y_cm) < 0.5]
+        return min(near) if near else -20.0  # web z of the back (Blender y = -web z)
+    BODY_BACK = body_back
     build_materials()
     if os.environ.get('TAR_LIGHT', 'natural') == 'studio':
         build_world(); add_soft_key()  # rounds 1–7: soft, even studio light
@@ -535,6 +620,13 @@ def main(argv):
         for k in SCENES['keyframes'][1:]:
             apply_pose(pivot, cam, k['yaw'], k['pitch'], k['target'], k['dist'], k['elev'], k.get('aperture', 0))
             render(sc, out / f"scene_{k['caption']}.png", seed=k['caption'], raw_dir=out / 'raw')
+    elif mode == 'tail':
+        # quick look at the end of the scroll: the fall and the zoom (round 10)
+        sc, pivot, cam = setup(960, 540, 32)
+        out = BUILD / 'tail'; out.mkdir(parents=True, exist_ok=True)
+        for p in (0.60, 0.66, 0.70, 0.73, 0.76, 0.78, 0.80, 0.85, 0.90, 0.95, 1.0):
+            apply_state(pivot, cam, sample_scroll(p))
+            render(sc, out / f'p{round(p * 100):03d}.png', seed=round(p * 1000), raw_dir=out / 'raw')
     elif mode == 'fall':
         # the instrument tipping over backwards (pitch down to -90°), straight on and turned,
         # to check the window light never burns parts of it out (round 9)
