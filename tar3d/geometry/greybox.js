@@ -17,7 +17,7 @@ function halfEllipsoid(w, len, depth, centreY, mat) {
   return m;
 }
 
-export function buildGreybox(materials) {
+export function buildGreybox(materials, { skip = [] } = {}) {
   const { wood, lightWood, darkWood, bone, skin, metal, gut, horn } = materials;
   const parts = {};
   const group = (name) => {
@@ -113,6 +113,7 @@ export function buildGreybox(materials) {
     strings.add(new THREE.Mesh(g, metal));
   }
 
+  skip.forEach((name) => delete parts[name]);
   const root = new THREE.Group();
   Object.values(parts).forEach((p) => root.add(p));
   return { root, parts };

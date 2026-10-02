@@ -31,11 +31,25 @@ export const BODY = {
   },
   waistWidth: 13, // R4 0.62, F1 0.47 of the kaseh width → 0.57
 
+  // Rounded top of the naghareh rises a little past the body length; the neck covers it.
+  topY: 38.6,
+  // Cross-section of the bowl is a superellipse: 2 = plain ellipse, higher = fuller back (R6).
+  sectionExponent: 2.3,
+  // Soft blend between the two lobes at the waist (cm).
+  waistBlend: 1.6,
+
   rim: {
     width: 1.3, // wooden lip around the skin openings (R4)
-    lipHeight: 0.25, // lip stands above the skin
-    skinRecess: 0.2, // skin sits below the lip
-    inlayWidth: 0.45, // khatam band inside the lip (F1)
+    lipHeight: 0.25, // the wooden top stands this far above the skin (skin plane z = 0)
+    filletRadius: 0.4, // rounded outer edge where the top meets the bowl wall
+    inlayWidth: 0.45, // khatam band around each skin opening (F1)
+  },
+  skin: {
+    border: 2.4, // wood from the outline to the skin at the widest points (F1: about 2.1–2.4)
+    bottomGap: 2.2, // wood below the lower opening, above the tailpiece seat
+    topY: 36.6, // the upper opening ends under the end of the fingerboard (F1)
+    tipOverlap: 0.4, // the two heart tips pass each other by this much at the waist
+    tipWidth: 0.06, // half-width of each heart at its tip
   },
   valley: {
     // carved diagonal groove on the back between the two bowls (R6)
@@ -63,6 +77,9 @@ export const HEEL = {
   // pointed tongue running from the neck down the back of the naghareh (R3, R6)
   length: 10,
   tipWidth: 1.2,
+  thicknessTop: 1.6, // how far it stands off the bowl where it leaves the neck
+  thicknessTip: 0.7, // R3: the nose stays thick and rounded
+  noseLength: 1.2, // rounded end of the tongue
 };
 
 export const HEAD = {
