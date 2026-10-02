@@ -61,24 +61,32 @@ export const BODY = {
 
 export const NECK = {
   bottomY: BODY.length, // the neck leaves the body at its top
+  boardEndY: 36.2, // the fingerboard runs down onto the naghareh, just over the upper skin (F1)
   nutY: TOTAL_LENGTH - 13, // = 82; the head is 13 cm (see HEAD.height)
   widthAtNut: 3.3, // F1 / R4 relative to the kaseh width
   widthAtBody: 3.7,
-  depthAtNut: 2.6, // R6: back of the neck, rounded D section
+  depthAtNut: 2.6, // R6: back of the neck below the top of the neck wood
   depthAtBody: 3.0,
+  topZ: 0.6, // top of the neck wood (the fingerboard sits on it)
+  sectionExponent: 2.2, // rounded D section
+  cornerRadius: 0.2, // rounded top edges of the neck wood
   fingerboard: {
     thickness: 0.25,
     centreStrip: 0.9, // dark wood strip between the two bone strips (R2, F1)
+    bevel: 0.03,
   },
-  nut: { height: 0.45, depth: 0.6, slots: 6 },
+  nut: { height: 0.45, length: 0.6, radius: 0.12, slots: 6 },
 };
 
 export const HEEL = {
   // pointed tongue running from the neck down the back of the naghareh (R3, R6)
-  length: 10,
+  length: 10, // below the top of the body
+  startY: 42, // the back of the neck starts to thicken here, above the body (R6)
+  neckBulge: 0.6, // extra depth of the neck back where it reaches the body
   tipWidth: 1.2,
-  thicknessTop: 1.6, // how far it stands off the bowl where it leaves the neck
-  thicknessTip: 0.7, // R3: the nose stays thick and rounded
+  thicknessTop: 0.5, // stand-off from the bowl where the neck meets it (matches neckBulge)
+  thicknessMid: 1.0,
+  thicknessTip: 0.8, // R3: the nose stays thick and rounded
   noseLength: 1.2, // rounded end of the tongue
 };
 
@@ -136,6 +144,10 @@ export const FRETS = {
   strandDiameter: 0.08, // gut strand (R2)
   strands: 4, // turns per fret
   strandsLite: 2, // turns per fret on the light quality level
+  jitter: 0.02, // hand-tied turns are never perfectly even (cm)
+  knotRadius: 0.11, // knot on the bass side of the neck (R2)
+  tailLength: 0.35,
+  nailHead: 0.09, // radius of the nail heads where a fret cannot wrap the back (R3)
 };
 
 // Pivot of the whole instrument: the visual centre of its bounding box, so it turns

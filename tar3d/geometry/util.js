@@ -97,3 +97,45 @@ export function wallStrip(points, z0, z1, inward = false) {
   g.computeVertexNormals();
   return g;
 }
+
+// Rounded "D" cross-section: flat top at zTop between ±hw with rounded corners of radius r,
+// and a superellipse back reaching zTop − depth. Points run from the right top edge, down
+// and round the back, to the left top edge, as [x, z]. With `closeTop`, the flat top is
+// added back to the start so the loop is closed.
+export function dSection(hw, zTop, depth, r, nFillet, nBack, exponent, closeTop = false) {
+  const e = 2 / exponent, zt = zTop - r, zb = zTop - depth;
+  const pts = [];
+  for (let i = 0; i <= nFillet; i++) {
+    const a = (Math.PI / 2) * (1 - i / nFillet);
+    pts.push([hw - r + r * Math.cos(a), zt + r * Math.sin(a)]);
+  }
+  for (let i = 1; i <= nBack; i++) {
+    const th = (Math.PI * i) / (nBack + 1);
+    const c = Math.cos(th), s = Math.sin(th);
+    pts.push([hw * Math.sign(c) * Math.pow(Math.abs(c), e), zt - (zt - zb) * Math.pow(Math.abs(s), e)]);
+  }
+  for (let i = 0; i <= nFillet; i++) {
+    const a = Math.PI / 2 + (Math.PI / 2) * (1 - i / nFillet);
+    pts.push([-(hw - r) + r * Math.cos(a), zt + r * Math.sin(a)]);
+  }
+  if (closeTop) {
+    const n = 6;
+    for (let i = 1; i < n; i++) pts.push([lerp(-(hw - r), hw - r, i / n), zTop]);
+  }
+  return pts;
+}
+
+// z of the back of a dSection at x (ignoring the small top corners).
+export function dSectionZ(x, hw, zTop, depth, exponent) {
+  const t = Math.min(1, Math.abs(x) / hw);
+  return zTop - depth * Math.pow(Math.max(0, 1 - Math.pow(t, exponent)), 1 / exponent);
+}
+
+// Small deterministic random generator, so hand-made irregularities look the same on every load.
+export function seeded(seed) {
+  let s = seed >>> 0;
+  return () => {
+    s = (s * 1664525 + 1013904223) >>> 0;
+    return s / 4294967296;
+  };
+}

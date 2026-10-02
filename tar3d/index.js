@@ -5,18 +5,26 @@ import { QUALITY } from './dimensions.js';
 import { buildGreybox } from './geometry/greybox.js';
 import { buildBody } from './geometry/body.js';
 import { buildHeel } from './geometry/heel.js';
+import { buildNeck } from './geometry/neck.js';
+import { buildFrets } from './geometry/fretwraps.js';
 
 export function buildInstrument(materials, level = 'high') {
   const quality = QUALITY[level];
-  const { root, parts } = buildGreybox(materials, { skip: ['body', 'skin', 'heel'] });
+  const { root, parts } = buildGreybox(materials, { skip: ['body', 'skin', 'heel', 'neck', 'frets'] });
+  const add = (g) => { parts[g.name] = g; root.add(g); };
 
   // Phase 2: body, skin and heel
   const { body, skin } = buildBody(materials, quality);
   const skinGroup = new THREE.Group();
   skinGroup.name = 'skin';
   skinGroup.add(skin);
-  const heel = buildHeel(materials);
-  [body, skinGroup, heel].forEach((g) => { parts[g.name] = g; root.add(g); });
+  add(body);
+  add(skinGroup);
+  add(buildHeel(materials));
+
+  // Phase 3: neck, fingerboard, nut and frets
+  add(buildNeck(materials));
+  add(buildFrets(materials, quality));
 
   return { root, parts };
 }
