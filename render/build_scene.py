@@ -27,9 +27,9 @@ BUILD = HERE / 'build'
 ASSETS = HERE / 'assets'
 WEB_TEX = HERE.parent / 'tar3d' / 'textures'
 CM = 0.01
-# Polish of the bowl, 0 (raw, matte: the user's choice in round 5) … 1 (a thin, satin
-# oil-and-wax finish). TAR_GLOSS=1 renders the satin variant for comparison.
-GLOSS = float(os.environ.get('TAR_GLOSS', '0'))
+# Polish of the body wood, 0 (raw, matte) … 1 (a thin, satin oil-and-wax finish: the
+# user's choice after comparing both, spec section 16). TAR_GLOSS=0 renders the matte variant.
+GLOSS = float(os.environ.get('TAR_GLOSS', '1'))
 
 SCENES = json.loads((BUILD / 'scenes.json').read_text())
 PIVOT_WEB = SCENES['pivot']
@@ -212,7 +212,7 @@ def ring_wood(name, light, mid, line, axis_cm, tilt, rings_per_cm, roughness, wa
     nt.links.new(strength.outputs['Result'], mul.inputs['A'])
     nt.links.new(comb.outputs['Color'], mul.inputs['B'])
     nt.links.new(mul.outputs['Result'], bsdf.inputs['Base Color'])
-    polish = GLOSS if name in ('wood', 'lip') else 0.0
+    polish = GLOSS if name in ('wood', 'lip', 'lightWood', 'headWood') else 0.0
     bsdf.inputs['Roughness'].default_value = roughness * (1 - 0.3 * polish)
     if polish:
         # a thin satin coat: soft, broad highlights, never a mirror-like lacquer
@@ -289,8 +289,10 @@ def build_materials():
         'wood': ring_wood('wood', '#c98a3a', '#a05a24', '#4a2008', (-8, -32), (0.22, 0.12), 1.6, 0.6, line_var=(0.55, 1.0)),
         'lip': ring_wood('lip', '#8e6c52', '#7c5c44', '#5a4030', (-8, -32), (0.22, 0.12), 1.6, 0.7, line_var=(0.2, 0.6)),
         # neck, head, pegs and fingerboard: quieter, close-grained woods (rings barely show)
-        'lightWood': ring_wood('lightWood', '#c99b5e', '#b48650', '#8a5e30', (3, -6), (0, 0), 3.0, 0.55, warp_cm=0.2, line_var=(0.2, 0.6)),
-        'headWood': ring_wood('headWood', '#8c6242', '#7a5438', '#4a2e1a', (0, -0.8), (0, 0), 3.0, 0.55, warp_cm=0.2, line_var=(0.2, 0.6)),
+        # neck and head: the same golden mulberry and satin finish as the bowl (user's request,
+        # spec section 16), cut from the same log so the grain runs on along the instrument
+        'lightWood': ring_wood('lightWood', '#c98a3a', '#a05a24', '#4a2008', (-8, -32), (0.22, 0.12), 1.6, 0.6, line_var=(0.55, 1.0)),
+        'headWood': ring_wood('headWood', '#c98a3a', '#a05a24', '#4a2008', (-8, -32), (0.22, 0.12), 1.6, 0.6, line_var=(0.55, 1.0)),
         'pegWood': ring_wood('pegWood', '#6e4829', '#62401f', '#3e2612', (0, 0), (0, 0), 4.0, 0.5, warp_cm=0.2, line_var=(0.1, 0.4)),
         'boardWood': ring_wood('boardWood', '#4c2c17', '#42260f', '#2a170a', (0, -3), (0, 0), 3.0, 0.5, warp_cm=0.2, line_var=(0.2, 0.5)),
         'horn': textured('horn', None, 1, 0.35, sss=0.1, colour='#7a4a22')[0],
