@@ -1,0 +1,9 @@
+{
+  "name": "tar-render",
+  "private": true,
+  "type": "module",
+  "description": "Offline path-traced rendering of the 3D tar (spec section 15)",
+  "dependencies": {
+    "three": "0.160.0"
+  }
+}

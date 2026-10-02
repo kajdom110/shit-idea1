@@ -1,0 +1,5 @@
+node_modules/
+build/
+frames_raw/
+assets/
+__pycache__/
