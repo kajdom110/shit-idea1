@@ -294,6 +294,36 @@ def textured(name, tex, scale, roughness, sss=0.0, sss_radius=(1.0, 0.6, 0.4), t
     return m, nt, bsdf
 
 
+SKIN_EDGE = None  # (image path, x0, z0, width, height) in metres, made in setup()
+
+
+def make_skin_edge_map(objs, px_per_cm=20, max_cm=3.0):
+    """Distance from the skin's glued edge, as an image over the skin (0 at the edge, white
+    3 cm in). Real skin reads lighter and warmer near the edge, where it lies on wood and is
+    soaked with glue, and darker in the middle, where the dark hollow shows through it."""
+    from PIL import Image, ImageDraw, ImageFilter
+    skin = [o for o in objs if o.name.startswith('skin__')][0]
+    me = skin.data
+    xs = [v.co.x for v in me.vertices]; zs = [v.co.z for v in me.vertices]
+    x0, z0 = min(xs) - 0.005, min(zs) - 0.005
+    w, h = max(xs) + 0.005 - x0, max(zs) + 0.005 - z0
+    W, H = round(w * 100 * px_per_cm), round(h * 100 * px_per_cm)
+    im = Image.new('L', (W, H), 0); dr = ImageDraw.Draw(im)
+    to_px = lambda v: ((v.co.x - x0) / w * W, (1 - (v.co.z - z0) / h) * H)
+    for poly in me.polygons:
+        dr.polygon([to_px(me.vertices[i]) for i in poly.vertices], fill=255)
+    steps = round(max_cm * px_per_cm)
+    dist = Image.new('L', (W, H), 0)
+    cur = im
+    for k in range(steps):  # erode one pixel at a time: each survivor is one step further in
+        cur = cur.filter(ImageFilter.MinFilter(3))
+        lvl = round(255 * (k + 1) / steps)
+        dist.paste(lvl, mask=cur)
+    dist = dist.filter(ImageFilter.GaussianBlur(1.5))
+    path = BUILD / 'skin_edge.png'; dist.save(path)
+    return (path, x0, z0, w, h)
+
+
 def skin_material():
     """Lamb skin: thin, translucent rawhide. The web texture gives the broad tone; for close-ups
     (round 11) it gains what real stretched skin shows: soft mottling where it is thicker or
@@ -358,6 +388,50 @@ def skin_material():
     keep = op('GREATER_THAN', sep.outputs['Red'], 0.82)
     speck = op('MULTIPLY', dot, keep)
     col = multiply(col, grey(op('SUBTRACT', 1.0, op('MULTIPLY', speck, 0.25))))
+    # Round 12: the skin over the hollow vs over the wood. In the middle the dark bowl shows
+    # through the thin skin: it reads greyer, cooler and darker (R7: about 69 65 75). Near the
+    # edge it lies on the wooden lip and is soaked with glue: lighter, warmer, more opaque, with a
+    # thin darker line right at the glued edge.
+    path, ex0, ez0, ew, eh = SKIN_EDGE
+    sepc = N('ShaderNodeSeparateXYZ'); nt.links.new(co, sepc.inputs[0])
+    uvc = N('ShaderNodeCombineXYZ')
+    nt.links.new(op('DIVIDE', op('SUBTRACT', sepc.outputs['X'], ex0), ew), uvc.inputs['X'])
+    nt.links.new(op('DIVIDE', op('SUBTRACT', sepc.outputs['Z'], ez0), eh), uvc.inputs['Y'])
+    edge_img = N('ShaderNodeTexImage'); edge_img.image = bpy.data.images.load(str(path), check_existing=False)
+    edge_img.image.colorspace_settings.name = 'Non-Color'; edge_img.extension = 'EXTEND'
+    nt.links.new(uvc.outputs[0], edge_img.inputs['Vector'])
+    inward = edge_img.outputs['Color']  # 0 at the edge … 1 three cm in (grey: the R channel is enough)
+    inw = N('ShaderNodeSeparateColor'); nt.links.new(inward, inw.inputs['Color'])
+    d = inw.outputs['Red']
+    hollow = N('ShaderNodeMapRange'); hollow.inputs['From Min'].default_value = 0.15; hollow.inputs['From Max'].default_value = 0.85
+    hollow.interpolation_type = 'SMOOTHSTEP'
+    nt.links.new(d, hollow.inputs['Value'])
+    hol = hollow.outputs['Result']
+    # break the edge band up so it is not a ruled stripe: glue never spreads evenly
+    gl = N('ShaderNodeTexNoise'); gl.inputs['Scale'].default_value = 40.0; gl.inputs['Detail'].default_value = 3.0
+    nt.links.new(co, gl.inputs['Vector'])
+    hol = op('MINIMUM', 1.0, op('MAXIMUM', 0.0, op('ADD', op('MULTIPLY', hol, 0.85), op('MULTIPLY', op('SUBTRACT', gl.outputs['Fac'], 0.5), 0.7))))
+    over = N('ShaderNodeMix'); over.data_type = 'RGBA'
+    over.inputs['A'].default_value = (1.06, 0.98, 0.86, 1)   # over the wood, glued: warm, light
+    over.inputs['B'].default_value = (0.7, 0.69, 0.73, 1)   # over the hollow: grey-violet, darker
+    nt.links.new(hol, over.inputs['Factor'])
+    col = multiply(col, over.outputs['Result'])
+    # the hollow behind takes the colour out of the thin skin: greyer, a touch violet, not brown
+    bw = N('ShaderNodeRGBToBW'); nt.links.new(col, bw.inputs['Color'])
+    desat = N('ShaderNodeMix'); desat.data_type = 'RGBA'
+    nt.links.new(op('MULTIPLY', hol, 0.5), desat.inputs['Factor'])
+    nt.links.new(col, desat.inputs['A'])
+    nt.links.new(multiply(grey(bw.outputs['Val']), N('ShaderNodeRGB').outputs[0]), desat.inputs['B'])
+    rgbn = [n for n in nt.nodes if n.type == 'RGB'][-1]; rgbn.outputs[0].default_value = (0.97, 0.95, 1.06, 1)
+    col = desat.outputs['Result']
+    glue = N('ShaderNodeMapRange'); glue.inputs['From Min'].default_value = 0.0; glue.inputs['From Max'].default_value = 0.08
+    glue.inputs['To Min'].default_value = 0.72; glue.inputs['To Max'].default_value = 1.0
+    nt.links.new(d, glue.inputs['Value'])
+    glue_c = N('ShaderNodeCombineColor')
+    nt.links.new(glue.outputs['Result'], glue_c.inputs['Red'])
+    nt.links.new(op('ADD', 0.03, op('MULTIPLY', glue.outputs['Result'], 0.97)), glue_c.inputs['Green'])
+    nt.links.new(op('ADD', 0.08, op('MULTIPLY', glue.outputs['Result'], 0.92)), glue_c.inputs['Blue'])
+    col = multiply(col, glue_c.outputs['Color'])
     nt.links.new(col, bsdf.inputs['Base Color'])
     # fine relief: raised veins, a faint grain, and the specks as tiny pits
     micro = N('ShaderNodeTexNoise'); micro.inputs['Scale'].default_value = 2500.0; micro.inputs['Detail'].default_value = 2.0
@@ -365,11 +439,13 @@ def skin_material():
     height = op('ADD', op('MULTIPLY', vein_h, 0.5), op('SUBTRACT', micro.outputs['Fac'], op('MULTIPLY', speck, 0.6)))
     bump = N('ShaderNodeBump'); bump.inputs['Strength'].default_value = 0.12; bump.inputs['Distance'].default_value = 0.0003
     nt.links.new(height, bump.inputs['Height']); nt.links.new(bump.outputs['Normal'], bsdf.inputs['Normal'])
-    bsdf.inputs['Roughness'].default_value = 0.62
     # light shows through more where the skin is thinner
     trans = N('ShaderNodeBsdfTranslucent'); trans.inputs['Color'].default_value = srgb('#d9c4a8')
     mix = N('ShaderNodeMixShader')
-    nt.links.new(op('SUBTRACT', 0.1, op('MULTIPLY', thick, 0.08)), mix.inputs['Fac'])
+    nt.links.new(op('MULTIPLY', hol, op('SUBTRACT', 0.35, op('MULTIPLY', thick, 0.15))), mix.inputs['Fac'])
+    # the glued edge has a soft sheen of dried glue; the free skin is matte
+    rough = N('ShaderNodeMapRange'); rough.inputs['To Min'].default_value = 0.45; rough.inputs['To Max'].default_value = 0.68
+    nt.links.new(hol, rough.inputs['Value']); nt.links.new(rough.outputs['Result'], bsdf.inputs['Roughness'])
     nt.links.new(bsdf.outputs['BSDF'], mix.inputs[1]); nt.links.new(trans.outputs['BSDF'], mix.inputs[2])
     nt.links.new(mix.outputs['Shader'], out.inputs['Surface'])
     return m
@@ -702,6 +778,8 @@ def setup(width, height, samples):
         near = [-c.y / CM for c in shell if abs(c.z / CM - y_cm) < 0.5]
         return min(near) if near else -20.0  # web z of the back (Blender y = -web z)
     BODY_BACK = body_back
+    global SKIN_EDGE
+    SKIN_EDGE = make_skin_edge_map(objs)
     build_materials()
     if os.environ.get('TAR_LIGHT', 'natural') == 'studio':
         build_world(); add_soft_key()  # rounds 1–7: soft, even studio light
