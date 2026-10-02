@@ -891,7 +891,7 @@ TIMELINE = {
     'zoom_end': 1.0,       # …and the camera comes down onto the face until the end
     # the hinge: on the back of the bowl, this many cm from the bottom end (TAR_HINGE_CM)
     'hinge_cm': float(os.environ.get('TAR_HINGE_CM', '10')),
-    'fall_deg': 90,
+    'fall_deg': float(os.environ.get('TAR_FALL_DEG', '90')),  # negative: falls forward, towards the camera
     'crane_elev': 40,      # the camera rises while it falls, so it never sees it edge-on
     'face': [0, 15, 0.4],  # the point of the face the zoom ends on (web cm)
     'face_dist': 70, 'face_elev': 78,
@@ -901,7 +901,8 @@ BODY_BACK = None  # depth of the back of the bowl by height, read from the mesh 
 
 def hinge_local():
     y = TIMELINE['hinge_cm']
-    return web_to_blender((0, y, BODY_BACK(y)))
+    # falling back it pivots on the back of the bowl; falling forward, on the front face
+    return web_to_blender((0, y, BODY_BACK(y) if TIMELINE['fall_deg'] > 0 else 0.4))
 
 
 def keyframe_state(p):
