@@ -519,7 +519,7 @@ class Nodes:
 ROSEWOOD = ('#0e0301', '#2e0b02', '#581a06', '#8c3410')  # deep, dark, mid, light (sample: mean 73 32 18)
 
 
-def rosewood(name, tones=ROSEWOOD, gloss=1.0, stripes=0, stripe_axis_y=0.0, stripe_top=1.0, scale=1.0):
+def rosewood(name, tones=ROSEWOOD, gloss=1.0, stripes=0, stripe_axis_y=0.0, stripe_top=1.0, scale=1.0, spec=0.5, rough=0.42):
     """Dark red-brown wood with long, wavy flame streaks along the instrument (Blender z) and a
     deep, glossy lacquer. stripes>0 adds that many thin pale inlay lines round the bowl's long
     axis (one down the middle of the back), as on the samples."""
@@ -554,8 +554,8 @@ def rosewood(name, tones=ROSEWOOD, gloss=1.0, stripes=0, stripe_axis_y=0.0, stri
         line = g.op('MULTIPLY', line, g.op('MINIMUM', 1.0, g.op('MAXIMUM', 0.0, g.op('DIVIDE', g.op('SUBTRACT', rad, 0.03), 0.03))))
         col = g.mix(line, col, srgb('#dcc08e'))
     g.link(col, bsdf.inputs['Base Color'])
-    bsdf.inputs['Roughness'].default_value = 0.42
-    bsdf.inputs['Specular IOR Level'].default_value = 0.5
+    bsdf.inputs['Roughness'].default_value = rough
+    bsdf.inputs['Specular IOR Level'].default_value = spec
     bsdf.inputs['Coat Weight'].default_value = gloss
     bsdf.inputs['Coat Roughness'].default_value = 0.11
     bsdf.inputs['Coat IOR'].default_value = 1.5
@@ -714,7 +714,9 @@ def build_materials():
         mats.update({
             'wood': rosewood('rw_bowl', stripes=16, stripe_axis_y=0.0895, stripe_top=0.34),
             'woodTop': rosewood('rw_top'),
-            'headWood': rosewood('rw_head', scale=2.0),
+            # the head's flat front faces the window squarely in the opening scenes and mirrored
+            # it as a pale grey slab: a softer, satin finish keeps it dark red-brown
+            'headWood': rosewood('rw_head', scale=2.0, gloss=0.0, spec=0.15, rough=0.6),
             'pegWood': rosewood('rw_peg', tones=('#1e0904', '#40150a', '#6a2a12', '#8a4020'), scale=3.0),
             'boardWood': rosewood('rw_board', tones=('#1a0703', '#33100a', '#561e0e', '#6e2a14'), scale=2.0),
             'lightWood': maple('maple'),
