@@ -139,8 +139,21 @@ def ash_detail(nt):
     return soft.outputs['Result'], bw.outputs['Val']
 
 
+def muted(hexcol, sat=0.9, val=0.9):
+    """The same hue, a little duller (saturation × sat) and darker (value × val)."""
+    import colorsys
+    r, g, b = (int(hexcol[i:i + 2], 16) / 255 for i in (1, 3, 5))
+    h, s_, v = colorsys.rgb_to_hsv(r, g, b)
+    r, g, b = colorsys.hsv_to_rgb(h, s_ * sat, v * val)
+    return '#%02x%02x%02x' % tuple(round(c * 255) for c in (r, g, b))
+
+
+# golden mulberry of bowl, neck and head: round 6 colours, 10% duller and darker (round 7)
+MULBERRY = tuple(muted(c) for c in ('#c98a3a', '#a05a24', '#4a2008'))
+
+
 def ring_wood(name, light, mid, line, axis_cm, tilt, rings_per_cm, roughness, warp_cm=0.5,
-              ramp=(0.0, 0.45, 0.72, 0.92), line_var=(0.3, 1.0)):
+              ramp=(0.0, 0.45, 0.72, 0.92), line_var=(0.3, 1.0), irregular=0.0):
     """Ring-porous wood: 3D growth rings round a slightly tilted log axis (so bulges show oval
     eyes, as on the reference close-ups), the scanned ash for fibres and pores, and no gloss.
     Each year's dark line has its own strength (line_var: weakest…strongest), as in real wood."""
@@ -170,6 +183,13 @@ def ring_wood(name, light, mid, line, axis_cm, tilt, rings_per_cm, roughness, wa
     warp = N('ShaderNodeTexNoise'); warp.inputs['Scale'].default_value = 2.5; warp.inputs['Detail'].default_value = 1.0
     nt.links.new(tilt_m.outputs['Vector'], warp.inputs['Vector'])
     r = op('ADD', r, op('MULTIPLY', op('SUBTRACT', warp.outputs['Fac'], 0.5), warp_cm * 0.02))
+    if irregular:
+        # natural wood is never a clean ruler: wavy runs, a pinched year here, a bulge there
+        wav = N('ShaderNodeTexNoise'); wav.inputs['Scale'].default_value = 14.0; wav.inputs['Detail'].default_value = 2.0
+        wav.inputs['Roughness'].default_value = 0.55
+        st = N('ShaderNodeMapping'); st.inputs['Scale'].default_value = (1.0, 1.0, 0.35)  # longer along the grain
+        nt.links.new(tilt_m.outputs['Vector'], st.inputs['Vector']); nt.links.new(st.outputs['Vector'], wav.inputs['Vector'])
+        r = op('ADD', r, op('MULTIPLY', op('SUBTRACT', wav.outputs['Fac'], 0.5), irregular * 0.006))
     # years of different widths: a smooth, always increasing function of the radius
     rr = op('MULTIPLY', r, per_m)
     def noise1(w, scale):
@@ -177,12 +197,12 @@ def ring_wood(name, light, mid, line, axis_cm, tilt, rings_per_cm, roughness, wa
         n.inputs['Detail'].default_value = 0.0
         nt.links.new(w, n.inputs['W'])
         return op('SUBTRACT', n.outputs['Fac'], 0.5)
-    years = op('ADD', rr, op('MULTIPLY', noise1(rr, 0.13), 2.2))
-    years = op('ADD', years, op('MULTIPLY', noise1(rr, 0.45), 0.8))
+    years = op('ADD', rr, op('MULTIPLY', noise1(rr, 0.13), 2.2 * (1 + irregular)))
+    years = op('ADD', years, op('MULTIPLY', noise1(rr, 0.45), 0.8 * (1 + irregular)))
     # a few tenths of a millimetre of ragged edge
     jit = N('ShaderNodeTexNoise'); jit.inputs['Scale'].default_value = 600.0; jit.inputs['Detail'].default_value = 0.0
     nt.links.new(tilt_m.outputs['Vector'], jit.inputs['Vector'])
-    years = op('ADD', years, op('MULTIPLY', op('SUBTRACT', jit.outputs['Fac'], 0.5), 0.08))
+    years = op('ADD', years, op('MULTIPLY', op('SUBTRACT', jit.outputs['Fac'], 0.5), 0.08 / (1 + 2 * irregular)))
     ring = op('FRACT', years)
     ramp_n = nt.nodes.new('ShaderNodeValToRGB')
     cr = ramp_n.color_ramp
@@ -286,13 +306,17 @@ def build_materials():
         Image.open(ASSETS / 'ash_veneer_diff_2k.jpg').rotate(90, expand=True).save(rot, quality=95)
     mats = {
         # bowl: colours and log axis from revision round 5 (spec section 14), calibrated to R9/R10
-        'wood': ring_wood('wood', '#c98a3a', '#a05a24', '#4a2008', (-8, -32), (0.22, 0.12), 1.6, 0.6, line_var=(0.55, 1.0)),
-        'lip': ring_wood('lip', '#8e6c52', '#7c5c44', '#5a4030', (-8, -32), (0.22, 0.12), 1.6, 0.7, line_var=(0.2, 0.6)),
+        'wood': ring_wood('wood', *MULBERRY, (-8, -32), (0.22, 0.12), 1.6, 0.6, line_var=(0.55, 1.0)),
+        'lip': ring_wood('lip', *(muted(c) for c in ('#8e6c52', '#7c5c44', '#5a4030')), (-8, -32), (0.22, 0.12), 1.6, 0.7, line_var=(0.2, 0.6)),
         # neck, head, pegs and fingerboard: quieter, close-grained woods (rings barely show)
         # neck and head: the same golden mulberry and satin finish as the bowl (user's request,
         # spec section 16), cut from the same log so the grain runs on along the instrument
-        'lightWood': ring_wood('lightWood', '#c98a3a', '#a05a24', '#4a2008', (-8, -32), (0.22, 0.12), 1.6, 0.6, line_var=(0.55, 1.0)),
-        'headWood': ring_wood('headWood', '#c98a3a', '#a05a24', '#4a2008', (-8, -32), (0.22, 0.12), 1.6, 0.6, line_var=(0.55, 1.0)),
+        'lightWood': ring_wood('lightWood', *MULBERRY, (-8, -32), (0.22, 0.12), 1.6, 0.6, line_var=(0.55, 1.0)),
+        # head: the flat faces of a far-off log axis cut the rings into straight, even bands;
+        # a nearer, more tilted axis and strong irregularity give the arches, pinches and wavy
+        # runs of real wood instead
+        'headWood': ring_wood('headWood', *MULBERRY, (6, -10), (0.12, -0.07), 1.6, 0.6, warp_cm=1.0,
+                              line_var=(0.45, 1.0), irregular=1.5),
         'pegWood': ring_wood('pegWood', '#6e4829', '#62401f', '#3e2612', (0, 0), (0, 0), 4.0, 0.5, warp_cm=0.2, line_var=(0.1, 0.4)),
         'boardWood': ring_wood('boardWood', '#4c2c17', '#42260f', '#2a170a', (0, -3), (0, 0), 3.0, 0.5, warp_cm=0.2, line_var=(0.2, 0.5)),
         'horn': textured('horn', None, 1, 0.35, sss=0.1, colour='#7a4a22')[0],
