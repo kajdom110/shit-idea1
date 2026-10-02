@@ -13,6 +13,7 @@ uniform vec3 woodLight;
 uniform vec3 woodDark;
 uniform vec3 woodLine;
 uniform vec2 woodAxis;
+uniform vec2 woodTilt;
 uniform float woodFreq;
 uniform float woodWarp;
 uniform float woodPore;
@@ -47,21 +48,35 @@ float woodDetailFade(vec3 p) {
 }
 // x: tone (0 light … 1 dark), y: latewood line, z: pore
 vec3 woodPattern(vec3 p) {
-  // grain runs along y: noise is stretched along it
-  vec3 g = vec3(p.x, p.y * 0.12, p.z);
-  // two scales of warp so rings wander rather than forming even contour lines
-  float warp = (wFbm(g * 0.45) - 0.5) * woodWarp + (wFbm(g * 1.7 + 3.1) - 0.5) * woodWarp * 0.35;
-  float r = length(p.xz - woodAxis) + warp;
-  // ring width varies from year to year
-  float ring = fract(r * woodFreq + wFbm(g * 0.3 + 7.3) * 1.5);
-  // smooth and periodic: no hard edge where one ring meets the next (that read as a contour map)
-  float late = pow(0.5 - 0.5 * cos(6.2831853 * ring), 1.5);
-  // thin dark latewood line at the end of each year's growth
-  float line = smoothstep(0.86, 0.95, ring) * (1.0 - smoothstep(0.97, 1.0, ring));
-  float pore = smoothstep(0.7, 0.9, wNoise(vec3(p.x * 34.0, p.y * 0.9, p.z * 34.0))) * woodPore * woodDetailFade(p);
-  // broad streaks that run with the grain carry most of the colour, as in real mulberry
-  float figure = (wFbm(vec3(p.x * 0.9, p.y * 0.05, p.z * 0.9) + 11.0) - 0.5) * woodFigure * 1.4
-               + (wFbm(g * vec3(1.1, 1.6, 1.1)) - 0.5) * woodFigure * 0.5;
+  // The log bends only gently over its length: low-frequency warp only, so each growth line
+  // stays one clean, smooth curve (higher-frequency warp made jagged, contour-map lines).
+  float warp = (wFbm(vec3(p.x * 0.08, p.y * 0.035, p.z * 0.08)) - 0.5) * woodWarp
+             + (wFbm(vec3(p.x * 0.25, p.y * 0.02, p.z * 0.25) + 3.1) - 0.5) * woodWarp * 0.25;
+  // The log's axis is never exactly parallel to the carved bowl: a slight tilt turns would-be
+  // concentric circles on the back into long, stretched arches, as on real carved bowls.
+  float r = length(p.xz - woodAxis - p.y * woodTilt) + warp;
+  // Years of different width: a smooth, always increasing function of the radius (with a slow
+  // drift along the log), so lines never wobble or cross but are unevenly spaced.
+  float rr = r * woodFreq;
+  float years = rr + 1.8 * (wNoise(vec3(rr * 0.13, 1.7, 3.3)) - 0.5) + 0.7 * (wNoise(vec3(rr * 0.45, p.y * 0.015, 9.1)) - 0.5);
+  // a few tenths of a millimetre of jitter: real growth lines have slightly ragged edges
+  float ring = fract(years + (wNoise(vec3(p.x * 6.0, p.y * 0.3, p.z * 6.0)) - 0.5) * 0.08);
+  // each year's latewood line has its own strength: some lines strong, many faint
+  float yearHash = fract(sin(floor(years) * 12.9898) * 43758.5453);
+  float lineStrength = 0.25 + 0.75 * yearHash * yearHash;
+  // earlywood is light; the wood darkens through the year into the latewood line,
+  // then the next year starts light again
+  float late = smoothstep(0.35, 0.92, ring);
+  float aa = clamp(fwidth(years) * 1.5, 0.0, 0.5); // softens lines that get close to a pixel apart
+  float line = smoothstep(0.86 - aa, 0.95, ring) * (1.0 - smoothstep(0.985 - aa, 1.0, ring)) * lineStrength;
+  // ring-porous wood: the dark line is made of rows of open pores, so it reads as fine dashes
+  // along the grain rather than a smooth printed band (averaged out where it gets too small to see)
+  float poreRow = wNoise(vec3(p.x * 22.0, p.y * 0.7, p.z * 22.0));
+  line *= mix(1.0, mix(0.35, 1.35, poreRow), woodDetailFade(p * 0.6));
+  // ring-porous wood: the few visible pores sit in the light earlywood
+  float pore = smoothstep(0.75, 0.92, wNoise(vec3(p.x * 34.0, p.y * 0.9, p.z * 34.0))) * woodPore * woodDetailFade(p) * (1.0 - late);
+  // very gentle colour drift along the grain; no blotches
+  float figure = (wFbm(vec3(p.x * 0.6, p.y * 0.03, p.z * 0.6) + 11.0) - 0.5) * woodFigure;
   return vec3(clamp(late * woodLateAmount + figure + woodBias, 0.0, 1.0), line, pore);
 }
 `;
@@ -73,6 +88,7 @@ export function makeWood(params, base = {}) {
     woodDark: { value: new THREE.Color(params.dark) },
     woodLine: { value: new THREE.Color(params.line) },
     woodAxis: { value: new THREE.Vector2(...(params.axis || [0, 0])) },
+    woodTilt: { value: new THREE.Vector2(...(params.tilt || [0, 0])) }, // axis drift per cm along the grain
     woodFreq: { value: params.freq ?? 1.6 },
     woodWarp: { value: params.warp ?? 0.6 },
     woodPore: { value: params.pore ?? 0.6 },
@@ -95,7 +111,7 @@ export function makeWood(params, base = {}) {
         vec3 wPat = woodPattern(vWoodPos);
         vec3 wCol = mix(woodLight, woodDark, wPat.x);
         // line darkness varies from ring to ring, as in real wood
-        float wLineVar = 0.55 + 0.9 * wNoise(vWoodPos * vec3(0.6, 0.04, 0.6) + 5.0);
+        float wLineVar = 0.75 + 0.5 * wNoise(vWoodPos * vec3(0.6, 0.02, 0.6) + 5.0);
         wCol = mix(wCol, woodLine, clamp(wPat.y * woodLineAmount * wLineVar, 0.0, 1.0));
         wCol *= 1.0 - wPat.z * 0.45;
         // fine fibres along the grain: raw wood, not a painted surface
@@ -104,13 +120,13 @@ export function makeWood(params, base = {}) {
         wCol *= 1.0 + (wFib - 0.5) * woodFiber * wFade;
         diffuseColor.rgb *= wCol;`)
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
-        // the finish is uneven, as on a played instrument: patches of slightly duller sheen
+        // an even satin finish: only a faint variation, no patches
         float wWear = wFbm(vWoodPos * vec3(0.18, 0.06, 0.18));
-        roughnessFactor = clamp(roughnessFactor * (1.0 + wPat.z * 0.35 + wPat.y * 0.1) * mix(0.85, 1.25, wWear), 0.0, 1.0);`)
+        roughnessFactor = clamp(roughnessFactor * (1.0 + wPat.z * 0.2) * mix(0.95, 1.05, wWear), 0.0, 1.0);`)
       .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
         {
-          // latewood lines, pores and fibres are sunk very slightly; detail fades before it can alias
-          float wH = (-wPat.y * 0.5 - wPat.z * 0.6 + (wFib - 0.5) * woodFiber * 0.5 * wFade) * woodBump;
+          // under varnish the grain lines are colour only, not grooves: only the fibres have a faint relief
+          float wH = (wFib - 0.5) * woodFiber * 0.3 * wFade * woodBump;
           vec3 sx = dFdx(-vViewPosition), sy = dFdy(-vViewPosition);
           vec3 r1 = cross(sy, normal), r2 = cross(normal, sx);
           float det = dot(sx, r1) * faceDirection;

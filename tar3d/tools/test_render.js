@@ -58,6 +58,9 @@ async function views() {
     head_end_on: [0, 70, { dist: 55, target: [0, 88, -0.8] }],
     neck_close: [-20, 10, { dist: 40, target: [0, 62, 0] }],
     heel: [200, 10, { dist: 55, target: [0, 36, -6] }],
+    // close-ups of the bowl wood, framed like the side of the kaseh in reference R7
+    kaseh_close: [-28, 4, { dist: 70, target: [7, 12, -3] }],
+    kaseh_back_close: [150, -5, { dist: 70, target: [0, 10, -12] }],
   };
   for (const [name, [yaw, pitch, opts]] of Object.entries(V)) {
     await page.evaluate(([y, p, o]) => window.__tar.pose(y, p, o), [yaw, pitch, opts]);

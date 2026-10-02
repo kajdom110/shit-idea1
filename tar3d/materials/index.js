@@ -82,7 +82,7 @@ export function createMaterials({ anisotropy = 8, manager } = {}) {
   const wood = makeWood(
     // kaseh and naghareh: honey-amber mulberry with thin, close, nearly straight grain lines and a
     // satin finish, matched to reference photo R7 (spec section 11)
-    { light: '#a06e32', dark: '#663f25', line: '#341a0a', axis: [0, 9], freq: 2.6, warp: 0.35, pore: 0.3, figure: 0.22, bump: 0.025, fiber: 0.25, bias: 0.2, lineAmount: 0.8, lateAmount: 0.3 },
+    { light: '#a06e32', dark: '#663f25', line: '#341a0a', axis: [0, 9], tilt: [0.12, 0.22], freq: 2.6, warp: 1.2, pore: 0.15, figure: 0.1, bump: 0.025, fiber: 0.2, bias: 0.2, lineAmount: 0.6, lateAmount: 0.4 },
     { roughness: 0.42, clearcoat: 0.3, clearcoatRoughness: 0.32, envMapIntensity: 0.5, specularIntensity: 0.7 },
   );
   const lightWood = makeWood(
