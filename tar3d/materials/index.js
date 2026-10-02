@@ -111,8 +111,8 @@ export function createMaterials({ anisotropy = 8, manager } = {}) {
     { roughness: 0.28, clearcoat: 0.6, clearcoatRoughness: 0.2 },
   );
   const lip = makeWood(
-    // the unvarnished wooden lip round the skin: warm brown-beige (R7), matte
-    { light: '#a8784c', dark: '#7c5432', line: '#5a3a20', axis: [0, 9], freq: 2.6, warp: 0.35, pore: 0.3, figure: 0.2, bump: 0.02, fiber: 0.35, lineAmount: 0.3 },
+    // the unvarnished wooden lip round the skin: greyish brown (R7, about 117 86 76), matte
+    { light: '#74594a', dark: '#574236', line: '#3e2e24', axis: [0, 9], freq: 2.6, warp: 0.35, pore: 0.3, figure: 0.2, bump: 0.02, fiber: 0.35, lineAmount: 0.3 },
     { roughness: 0.68, clearcoat: 0 },
   );
   const cavity = new THREE.MeshStandardMaterial({ color: '#150c07', roughness: 0.95, side: THREE.DoubleSide });

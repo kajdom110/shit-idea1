@@ -1,4 +1,5 @@
 // Studio: renderer, camera, lights, reflections and the post-processing chain.
+// Lighting follows the soft interior light of reference photo R7 (spec section 12).
 //
 // The lights stay fixed and the instrument turns beneath them, like a tar on a turntable in a
 // photo studio, so every change of light while it turns is a real one.
@@ -9,26 +10,31 @@ import { BokehPass } from 'three/addons/postprocessing/BokehPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { PIVOT } from './dimensions.js';
 
-// A dark studio with three soft boxes, rendered once into a reflection map: a large box
-// overhead (the key), a tall strip on the left and a narrow strip behind on the right.
-function studioEnvironment(renderer) {
+// The light of a warm interior room (as in reference photo R7), rendered once into a
+// reflection and ambient map: beige walls all round, a broad soft light overhead and in front,
+// and a warm bounce from the wooden table below. Materials take both their soft fill light and
+// their reflections from it, so shadows stay gentle and the varnish shows broad, soft highlights.
+function roomEnvironment(renderer) {
   const env = new THREE.Scene();
-  env.background = new THREE.Color(0x050505);
-  const box = (w, h, color, intensity, pos) => {
-    const m = new THREE.Mesh(
-      new THREE.PlaneGeometry(w, h),
-      new THREE.MeshBasicMaterial({ color: new THREE.Color(color).multiplyScalar(intensity), side: THREE.DoubleSide }),
-    );
+  const wall = (color, intensity) => new THREE.MeshBasicMaterial({ color: new THREE.Color(color).multiplyScalar(intensity), side: THREE.BackSide });
+  const room = new THREE.Mesh(new THREE.BoxGeometry(14, 9, 14), [
+    wall(0xe8dccb, 0.8), wall(0xe8dccb, 0.8), // side walls
+    wall(0xf3ebe0, 0.7), // ceiling
+    wall(0x9a5a2c, 0.65), // floor: warm wooden table
+    wall(0xeee3d4, 0.95), // wall behind the camera
+    wall(0xe2d6c4, 0.7), // wall behind the instrument
+  ]);
+  env.add(room);
+  const panel = (w, h, color, intensity, pos) => {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: new THREE.Color(color).multiplyScalar(intensity), side: THREE.DoubleSide }));
     m.position.set(...pos);
     m.lookAt(0, 0, 0);
     env.add(m);
   };
-  box(6, 4, 0xfff4e6, 3.5, [0, 6, 3]); // phase 7: 6 bleached the varnish when the front tipped up
-  box(1.6, 7, 0xffeedd, 3, [-6, 1, 1]);
-  box(1.0, 6, 0xffe2c8, 2.5, [5, 1, -5]);
-  box(12, 2, 0x2a2420, 1, [0, -5, 0]); // faint floor bounce
+  panel(7, 5, 0xfff1e0, 3.0, [0, 4.4, 3]); // broad ceiling light, slightly in front
+  panel(6, 3.5, 0xfff4e8, 1.7, [0, 1.2, 6.9]); // soft light from the camera side
   const pmrem = new THREE.PMREMGenerator(renderer);
-  const tex = pmrem.fromScene(env, 0.02).texture;
+  const tex = pmrem.fromScene(env, 0.04).texture;
   pmrem.dispose();
   return tex;
 }
@@ -58,32 +64,35 @@ export function createScene(container, { dof = true } = {}) {
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.0;
   renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  // variance shadows can be blurred: soft-edged shadows, as under a broad room light
+  renderer.shadowMap.type = THREE.VSMShadowMap;
   container.appendChild(renderer.domElement);
 
   const scene = new THREE.Scene();
   scene.background = backdrop();
-  scene.environment = studioEnvironment(renderer);
+  scene.environment = roomEnvironment(renderer);
 
   // A long lens, as product photographers use: little perspective distortion.
   const camera = new THREE.PerspectiveCamera(24, 1, 5, 2000);
   camera.position.set(0, 0, 270);
 
   /* ---------- lights ---------- */
-  const key = new THREE.DirectionalLight(0xfff3e4, 2.3);
+  // a gentle directional light only for shape and soft shadows; the room does most of the lighting
+  const key = new THREE.DirectionalLight(0xfff3e4, 1.1);
   key.position.set(-60, 160, 140);
   key.castShadow = true;
   key.shadow.mapSize.set(2048, 2048);
   Object.assign(key.shadow.camera, { left: -60, right: 60, top: 60, bottom: -60, near: 10, far: 500 });
   key.shadow.bias = -0.0004;
   key.shadow.normalBias = 0.04;
+  key.shadow.radius = 12;
+  key.shadow.blurSamples = 16;
   scene.add(key);
-  const rimLeft = new THREE.DirectionalLight(0xffe6cc, 1.4);
+  const rimLeft = new THREE.DirectionalLight(0xffe6cc, 0.5);
   rimLeft.position.set(-160, 60, -120);
-  const rimRight = new THREE.DirectionalLight(0xffdcbc, 1.1);
+  const rimRight = new THREE.DirectionalLight(0xffdcbc, 0.4);
   rimRight.position.set(170, 30, -110);
-  // soft room fill (R7 is lit by a soft interior light, with gentle shadows)
-  const fill = new THREE.HemisphereLight(0xfff0e0, 0x2a2018, 0.6);
+  const fill = new THREE.HemisphereLight(0xfff0e0, 0x5a3820, 0.25);
   scene.add(rimLeft, rimRight, fill);
 
   /* ---------- instrument holders ---------- */
