@@ -54,8 +54,8 @@ export function buildHead(materials) {
 
   // Back wall: the full outline
   const backShape = roundedRect(-hw + b, y0 + b, hw - b, y1 - b, HEAD.cornerRadius);
-  const back = new THREE.Mesh(new THREE.ExtrudeGeometry(backShape, extrudeOpts(HEAD.wall + b)), materials.darkWood);
-  back.position.z = HEAD_BACK_Z + b;
+  // Geometry is moved, not the mesh, so the solid wood pattern lines up across all parts.
+  const back = new THREE.Mesh(new THREE.ExtrudeGeometry(backShape, extrudeOpts(HEAD.wall + b)).translate(0, 0, HEAD_BACK_Z + b), materials.headWood);
   back.name = 'headBack';
 
   // Frame: the outline with the slot cut through it
@@ -64,13 +64,11 @@ export function buildHead(materials) {
   const slot = symmetricShape((y) => slotHalfWidth(y) + b, lo - b, hi + b, 160);
   frameShape.holes.push(new THREE.Path(slot.slice().reverse()));
   const frameDepth = HEAD.depth - HEAD.wall;
-  const frame = new THREE.Mesh(new THREE.ExtrudeGeometry(frameShape, extrudeOpts(frameDepth)), materials.darkWood);
-  frame.position.z = HEAD_BACK_Z + HEAD.wall + b;
+  const frame = new THREE.Mesh(new THREE.ExtrudeGeometry(frameShape, extrudeOpts(frameDepth)).translate(0, 0, HEAD_BACK_Z + HEAD.wall + b), materials.headWood);
   frame.name = 'headFrame';
 
   // Floor of the slot, a shade darker, so the inside reads as a cavity
-  const floor = new THREE.Mesh(new THREE.ShapeGeometry(new THREE.Shape(slot)), materials.darkWood);
-  floor.position.z = HEAD_BACK_Z + HEAD.wall + 0.005;
+  const floor = new THREE.Mesh(new THREE.ShapeGeometry(new THREE.Shape(slot)).translate(0, 0, HEAD_BACK_Z + HEAD.wall + 0.005), materials.cavity);
   floor.name = 'slotFloor';
 
   [back, frame, floor].forEach((m) => { m.castShadow = m.receiveShadow = true; group.add(m); });

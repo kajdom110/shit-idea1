@@ -33,7 +33,7 @@ export function buildPegs(materials) {
   group.name = 'pegs';
   const geo = pegGeometry();
   PEGS.layout.forEach((p, i) => {
-    const m = new THREE.Mesh(geo, materials.darkWood);
+    const m = new THREE.Mesh(geo, materials.pegWood);
     // lathe axis is +y; turn it to point out of the head on this peg's side
     m.rotation.z = -p.side * Math.PI / 2;
     m.position.set(p.side * HEAD.width / 2, pegY(p), HEAD_MID_Z);

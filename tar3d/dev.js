@@ -2,11 +2,12 @@
 // wireframe and per-part bounding boxes with their measured sizes.
 import * as THREE from 'three';
 import { TrackballControls } from 'three/addons/controls/TrackballControls.js';
-import { createScene, placeholderMaterials } from './scene.js';
+import { createScene } from './scene.js';
+import { createMaterials } from './materials/index.js';
 import { buildInstrument } from './index.js';
 
 const { renderer, scene, camera, holder } = createScene(document.getElementById('stage'));
-const materials = placeholderMaterials();
+const materials = createMaterials({ anisotropy: renderer.capabilities.getMaxAnisotropy() });
 const { root, parts } = buildInstrument(materials);
 holder.add(root);
 

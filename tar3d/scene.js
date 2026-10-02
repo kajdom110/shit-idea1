@@ -40,20 +40,3 @@ export function createScene(container) {
 
   return { renderer, scene, camera, pivot, holder, resize };
 }
-
-// Temporary flat materials for the block model; phase 5 replaces them.
-export function placeholderMaterials() {
-  const m = (color, extra) => new THREE.MeshStandardMaterial({ color, roughness: 0.6, side: THREE.DoubleSide, ...extra });
-  return {
-    wood: m(0x8a5a2e),
-    lightWood: m(0xb88a4e),
-    darkWood: m(0x5a3a22),
-    bone: m(0xe6dcc6, { roughness: 0.4 }),
-    skin: m(0x8c8272, { roughness: 0.9, side: THREE.DoubleSide }),
-    metal: m(0xd0d0d0, { metalness: 1, roughness: 0.3 }),
-    gut: m(0xe0c98a),
-    horn: m(0x7a4a22),
-    inlay: m(0xcdb894, { roughness: 0.5 }),
-    bronze: m(0xb08850, { metalness: 1, roughness: 0.35 }),
-  };
-}

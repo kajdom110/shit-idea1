@@ -150,14 +150,13 @@ export function buildBody(materials, quality) {
   const inlayPts = symmetricShape(inlayOuter, s0 - iw, s1 + iw, n);
   const skinPts = symmetricShape(O, s0, s1, n);
 
-  const top = new THREE.Mesh(new THREE.ShapeGeometry(shapeWithHoles(outer, [inlayPts]), 1), materials.wood);
-  top.position.z = TOP_Z;
+  // Geometry is moved, not the mesh, so the solid wood pattern lines up across all parts.
+  const top = new THREE.Mesh(new THREE.ShapeGeometry(shapeWithHoles(outer, [inlayPts]), 1).translate(0, 0, TOP_Z), materials.wood);
   top.name = 'top';
   top.receiveShadow = true;
   group.add(top);
 
-  const inlay = new THREE.Mesh(new THREE.ShapeGeometry(shapeWithHoles(inlayPts, [skinPts]), 1), materials.inlay);
-  inlay.position.z = TOP_Z;
+  const inlay = new THREE.Mesh(new THREE.ShapeGeometry(shapeWithHoles(inlayPts, [skinPts]), 1).translate(0, 0, TOP_Z), materials.inlay);
   inlay.name = 'inlay';
   group.add(inlay);
 

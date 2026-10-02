@@ -66,7 +66,7 @@ export function buildNeck(materials) {
   const hwB = neckHalfWidth(yb) - b, hwT = neckHalfWidth(yt) - b;
   const boneL = new THREE.Mesh(strip(-hwB, -c - b, -hwT, -c - b), materials.bone);
   const boneR = new THREE.Mesh(strip(hwB, c + b, hwT, c + b), materials.bone);
-  const centre = new THREE.Mesh(strip(-c + b, c - b, -c + b, c - b), materials.darkWood);
+  const centre = new THREE.Mesh(strip(-c + b, c - b, -c + b, c - b), materials.boardWood);
   [boneL, boneR, centre].forEach((m, i) => {
     m.name = ['boardBoneLeft', 'boardBoneRight', 'boardCentre'][i];
     m.castShadow = m.receiveShadow = true;
@@ -76,7 +76,7 @@ export function buildNeck(materials) {
   // Nut: a rounded bone block across the top of the fingerboard
   const nut = new THREE.Mesh(
     new RoundedBoxGeometry(neckHalfWidth(NECK.nutY) * 2, NECK.nut.length, NECK.nut.height, 3, NECK.nut.radius),
-    materials.bone,
+    materials.boneSmall,
   );
   nut.position.set(0, NECK.nutY - NECK.nut.length / 2, BOARD_TOP_Z + NECK.nut.height / 2);
   nut.name = 'nut';

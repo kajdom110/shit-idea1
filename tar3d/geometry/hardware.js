@@ -47,7 +47,7 @@ export function buildHardware(materials) {
   group.add(bridge);
 
   const T = TAILPIECE;
-  const tail = new THREE.Mesh(new RoundedBoxGeometry(T.width, T.length, T.thickness, 3, T.radius), materials.bone);
+  const tail = new THREE.Mesh(new RoundedBoxGeometry(T.width, T.length, T.thickness, 3, T.radius), materials.boneSmall);
   tail.position.set(0, T.y0 + T.length / 2, TOP_Z + T.thickness / 2);
   tail.name = 'tailpiece';
   tail.castShadow = true;
