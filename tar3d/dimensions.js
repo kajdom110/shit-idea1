@@ -42,8 +42,8 @@ export const BODY = {
   },
   // The bowl swells out beyond the flat face (R4: the silhouette is wider than the face).
   bulge: {
-    faceMargin: 0.5, // varnished wood between the lip and the face edge, before the bowl curves away (R4, F1)
-    minFaceRatio: 0.7, // where there is no lip, the face is this fraction of the bowl width
+    faceMargin: 0.4, // varnished wood between the lip and the face edge, before the bowl curves away
+    minFaceRatio: 0.35, // round 15: the bowl curves up close round the skins (user's photo); was 0.7
     minOverhang: 0.2, // the bowl always stands at least this far out beyond the face edge
     widestAt: 0.28, // the bowl is widest this fraction of its depth behind the face
   },
