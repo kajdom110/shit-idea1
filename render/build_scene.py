@@ -153,7 +153,7 @@ MULBERRY = tuple(muted(c) for c in ('#c98a3a', '#a05a24', '#4a2008'))
 
 
 def ring_wood(name, light, mid, line, axis_cm, tilt, rings_per_cm, roughness, warp_cm=0.5,
-              ramp=(0.0, 0.45, 0.72, 0.92), line_var=(0.3, 1.0), irregular=0.0):
+              ramp=(0.0, 0.38, 0.74, 0.92), line_var=(0.3, 1.0), irregular=0.0):
     """Ring-porous wood: 3D growth rings round a slightly tilted log axis (so bulges show oval
     eyes, as on the reference close-ups), the scanned ash for fibres and pores, and no gloss.
     Each year's dark line has its own strength (line_var: weakest…strongest), as in real wood."""
@@ -200,15 +200,17 @@ def ring_wood(name, light, mid, line, axis_cm, tilt, rings_per_cm, roughness, wa
     years = op('ADD', rr, op('MULTIPLY', noise1(rr, 0.13), 2.2 * (1 + irregular)))
     years = op('ADD', years, op('MULTIPLY', noise1(rr, 0.45), 0.8 * (1 + irregular)))
     # a few tenths of a millimetre of ragged edge
-    jit = N('ShaderNodeTexNoise'); jit.inputs['Scale'].default_value = 600.0; jit.inputs['Detail'].default_value = 0.0
+    jit = N('ShaderNodeTexNoise'); jit.inputs['Scale'].default_value = 250.0; jit.inputs['Detail'].default_value = 0.0
     nt.links.new(tilt_m.outputs['Vector'], jit.inputs['Vector'])
-    years = op('ADD', years, op('MULTIPLY', op('SUBTRACT', jit.outputs['Fac'], 0.5), 0.03 / (1 + 2 * irregular)))
+    years = op('ADD', years, op('MULTIPLY', op('SUBTRACT', jit.outputs['Fac'], 0.5), 0.012 / (1 + 2 * irregular)))
     ring = op('FRACT', years)
     ramp_n = nt.nodes.new('ShaderNodeValToRGB')
     cr = ramp_n.color_ramp
     cr.interpolation = 'EASE'
     cr.elements[0].position, cr.elements[0].color = ramp[0], srgb(light)
-    cr.elements[1].position, cr.elements[1].color = ramp[1], srgb(light)
+    # no flat plateau of earlywood: the tone keeps darkening a little through the year, so a
+    # flat face cutting the rings at a shallow angle shows soft gradients, not terraces (round 11)
+    cr.elements[1].position, cr.elements[1].color = ramp[1], tuple(a + (b - a) * 0.3 for a, b in zip(srgb(light), srgb(mid)))
     e = cr.elements.new(ramp[2]); e.color = srgb(mid)
     e = cr.elements.new(ramp[3]); e.color = srgb(line)
     e = cr.elements.new(0.99); e.color = srgb(line)
@@ -223,16 +225,37 @@ def ring_wood(name, light, mid, line, axis_cm, tilt, rings_per_cm, roughness, wa
     strength.inputs['A'].default_value = srgb(light)
     nt.links.new(vr.outputs['Result'], strength.inputs['Factor'])
     nt.links.new(ramp_n.outputs['Color'], strength.inputs['B'])
+    # Close-up detail (round 11). Where a flat face cuts the rings at a shallow angle each
+    # year turns into a broad, empty band; real wood fills it with fine pore streaks that
+    # follow the rings, and with fibre lines running along the grain.
+    pn = N('ShaderNodeTexNoise'); pn.inputs['Scale'].default_value = 300.0; pn.inputs['Detail'].default_value = 1.0
+    nt.links.new(tilt_m.outputs['Vector'], pn.inputs['Vector'])
+    phase = op('ADD', op('MULTIPLY', years, 3.0), op('MULTIPLY', pn.outputs['Fac'], 0.8))
+    streak = op('SINE', op('MULTIPLY', phase, 2 * math.pi))
+    fine_f = op('ADD', 1.0, op('MULTIPLY', streak, 0.09))
+    fib_map = N('ShaderNodeMapping'); fib_map.inputs['Scale'].default_value = (900.0, 900.0, 12.0)
+    nt.links.new(tilt_m.outputs['Vector'], fib_map.inputs['Vector'])
+    fib = N('ShaderNodeTexNoise'); fib.inputs['Scale'].default_value = 1.0; fib.inputs['Detail'].default_value = 3.0
+    fib.inputs['Roughness'].default_value = 0.6
+    nt.links.new(fib_map.outputs['Vector'], fib.inputs['Vector'])
+    fib_f = op('ADD', 1.0, op('MULTIPLY', op('SUBTRACT', fib.outputs['Fac'], 0.5), 0.3))
+    close_f = op('MULTIPLY', fine_f, fib_f)
+    close_c = N('ShaderNodeCombineColor')
+    for k in ('Red', 'Green', 'Blue'):
+        nt.links.new(close_f, close_c.inputs[k])
+    closemul = N('ShaderNodeMix'); closemul.data_type = 'RGBA'; closemul.blend_type = 'MULTIPLY'
+    closemul.inputs['Factor'].default_value = 1.0
+    nt.links.new(strength.outputs['Result'], closemul.inputs['A']); nt.links.new(close_c.outputs['Color'], closemul.inputs['B'])
     detail, detail_bw = ash_detail(nt)
     mul = nt.nodes.new('ShaderNodeMix'); mul.data_type = 'RGBA'; mul.blend_type = 'MULTIPLY'
     mul.inputs['Factor'].default_value = 1.0
     comb = nt.nodes.new('ShaderNodeCombineColor')
     for k in ('Red', 'Green', 'Blue'):
         nt.links.new(detail, comb.inputs[k])
-    nt.links.new(strength.outputs['Result'], mul.inputs['A'])
+    nt.links.new(closemul.outputs['Result'], mul.inputs['A'])
     nt.links.new(comb.outputs['Color'], mul.inputs['B'])
     nt.links.new(mul.outputs['Result'], bsdf.inputs['Base Color'])
-    polish = GLOSS if name in ('wood', 'lip', 'lightWood', 'headWood') else 0.0
+    polish = GLOSS if name in ('wood', 'woodTop', 'lightWood', 'headWood') else 0.0
     bsdf.inputs['Roughness'].default_value = roughness * (1 - 0.3 * polish)
     if polish:
         # a thin satin coat: soft, broad highlights, never a mirror-like lacquer
@@ -241,7 +264,8 @@ def ring_wood(name, light, mid, line, axis_cm, tilt, rings_per_cm, roughness, wa
     bsdf.inputs['Specular IOR Level'].default_value = 0.35
     # fibres and pores give a faint relief
     bump = nt.nodes.new('ShaderNodeBump'); bump.inputs['Strength'].default_value = 0.08; bump.inputs['Distance'].default_value = 0.0005
-    nt.links.new(detail_bw, bump.inputs['Height'])
+    height = op('ADD', detail_bw, op('MULTIPLY', fib.outputs['Fac'], 0.6))
+    nt.links.new(height, bump.inputs['Height'])
     nt.links.new(bump.outputs['Normal'], bsdf.inputs['Normal'])
     return m
 
@@ -271,20 +295,81 @@ def textured(name, tex, scale, roughness, sss=0.0, sss_radius=(1.0, 0.6, 0.4), t
 
 
 def skin_material():
-    """Lamb skin: thin and translucent; light passes through into the dark bowl, so it reads
-    darker in the middle and lighter at the edges, as on the reference photos."""
+    """Lamb skin: thin, translucent rawhide. The web texture gives the broad tone; for close-ups
+    (round 11) it gains what real stretched skin shows: soft mottling where it is thicker or
+    thinner, a faint network of veins and fibres, sparse follicle specks and a fine relief."""
     m, nt, bsdf = textured('skin', WEB_TEX / 'skin_albedo.webp', 1 / 36, 0.65, tint='#fff6e8')
     out = [n for n in nt.nodes if n.type == 'OUTPUT_MATERIAL'][0]
+    N = nt.nodes.new
+    def op(kind, x, y=None):
+        n = N('ShaderNodeMath'); n.operation = kind
+        for i, v in enumerate((x, y)):
+            if v is None: continue
+            if isinstance(v, (int, float)): n.inputs[i].default_value = v
+            else: nt.links.new(v, n.inputs[i])
+        return n.outputs[0]
+    def grey(f):
+        c = N('ShaderNodeCombineColor')
+        for k in ('Red', 'Green', 'Blue'): nt.links.new(f, c.inputs[k])
+        return c.outputs['Color']
+    def multiply(a_sock, b_sock):
+        mx = N('ShaderNodeMix'); mx.data_type = 'RGBA'; mx.blend_type = 'MULTIPLY'; mx.inputs['Factor'].default_value = 1.0
+        nt.links.new(a_sock, mx.inputs['A']); nt.links.new(b_sock, mx.inputs['B'])
+        return mx.outputs['Result']
     # (no subsurface: on a single thin sheet over the hollow it only loses light into the bowl)
     # the shared web texture is dark (mean ≈ 117 106 91); lift it to the cream-tan of the
     # reference skins (Cycles lets a colour factor exceed 1)
     src = bsdf.inputs['Base Color'].links[0].from_socket
-    lift = nt.nodes.new('ShaderNodeMix'); lift.data_type = 'RGBA'; lift.blend_type = 'MULTIPLY'
+    lift = N('ShaderNodeMix'); lift.data_type = 'RGBA'; lift.blend_type = 'MULTIPLY'
     lift.inputs['Factor'].default_value = 1.0
     lift.inputs['B'].default_value = (1.95, 1.65, 1.2, 1.0)
-    nt.links.new(src, lift.inputs['A']); nt.links.new(lift.outputs['Result'], bsdf.inputs['Base Color'])
-    trans = nt.nodes.new('ShaderNodeBsdfTranslucent'); trans.inputs['Color'].default_value = srgb('#d9c4a8')
-    mix = nt.nodes.new('ShaderNodeMixShader'); mix.inputs['Fac'].default_value = 0.06
+    nt.links.new(src, lift.inputs['A'])
+    co = N('ShaderNodeTexCoord').outputs['Object']
+    # thicker and thinner patches, a few cm across, a little warmer where thicker
+    mott = N('ShaderNodeTexNoise'); mott.inputs['Scale'].default_value = 22.0; mott.inputs['Detail'].default_value = 4.0
+    mott.inputs['Roughness'].default_value = 0.55
+    nt.links.new(co, mott.inputs['Vector'])
+    thick = mott.outputs['Fac']
+    tone = op('ADD', 0.93, op('MULTIPLY', thick, 0.14))
+    warm = N('ShaderNodeMix'); warm.data_type = 'RGBA'
+    warm.inputs['A'].default_value = (0.97, 0.98, 1.0, 1); warm.inputs['B'].default_value = (1.03, 0.99, 0.93, 1)
+    nt.links.new(thick, warm.inputs['Factor'])
+    col = multiply(multiply(lift.outputs['Result'], grey(tone)), warm.outputs['Result'])
+    # veins and fibres: cell edges of a warped Voronoi, at two sizes, very low contrast
+    warp = N('ShaderNodeTexNoise'); warp.inputs['Scale'].default_value = 60.0
+    nt.links.new(co, warp.inputs['Vector'])
+    wv = N('ShaderNodeVectorMath'); wv.operation = 'SCALE'; wv.inputs['Scale'].default_value = 0.004
+    nt.links.new(warp.outputs['Color'], wv.inputs[0])
+    wco = N('ShaderNodeVectorMath'); wco.operation = 'ADD'
+    nt.links.new(co, wco.inputs[0]); nt.links.new(wv.outputs[0], wco.inputs[1])
+    vein_h = None
+    for scale, width, depth in ((45.0, 0.035, 0.05), (160.0, 0.05, 0.035)):
+        vo = N('ShaderNodeTexVoronoi'); vo.feature = 'DISTANCE_TO_EDGE'; vo.inputs['Scale'].default_value = scale
+        nt.links.new(wco.outputs[0], vo.inputs['Vector'])
+        line = op('SUBTRACT', 1.0, op('MINIMUM', op('DIVIDE', vo.outputs['Distance'], width), 1.0))
+        col = multiply(col, grey(op('SUBTRACT', 1.0, op('MULTIPLY', line, depth))))
+        vein_h = line if vein_h is None else op('ADD', vein_h, line)
+    # sparse follicle specks
+    sp = N('ShaderNodeTexVoronoi'); sp.inputs['Scale'].default_value = 700.0
+    nt.links.new(co, sp.inputs['Vector'])
+    dot = op('SUBTRACT', 1.0, op('MINIMUM', op('DIVIDE', sp.outputs['Distance'], 0.12), 1.0))
+    sep = N('ShaderNodeSeparateColor')
+    nt.links.new(sp.outputs['Color'], sep.inputs['Color'])
+    keep = op('GREATER_THAN', sep.outputs['Red'], 0.82)
+    speck = op('MULTIPLY', dot, keep)
+    col = multiply(col, grey(op('SUBTRACT', 1.0, op('MULTIPLY', speck, 0.25))))
+    nt.links.new(col, bsdf.inputs['Base Color'])
+    # fine relief: raised veins, a faint grain, and the specks as tiny pits
+    micro = N('ShaderNodeTexNoise'); micro.inputs['Scale'].default_value = 2500.0; micro.inputs['Detail'].default_value = 2.0
+    nt.links.new(co, micro.inputs['Vector'])
+    height = op('ADD', op('MULTIPLY', vein_h, 0.5), op('SUBTRACT', micro.outputs['Fac'], op('MULTIPLY', speck, 0.6)))
+    bump = N('ShaderNodeBump'); bump.inputs['Strength'].default_value = 0.12; bump.inputs['Distance'].default_value = 0.0003
+    nt.links.new(height, bump.inputs['Height']); nt.links.new(bump.outputs['Normal'], bsdf.inputs['Normal'])
+    bsdf.inputs['Roughness'].default_value = 0.62
+    # light shows through more where the skin is thinner
+    trans = N('ShaderNodeBsdfTranslucent'); trans.inputs['Color'].default_value = srgb('#d9c4a8')
+    mix = N('ShaderNodeMixShader')
+    nt.links.new(op('SUBTRACT', 0.1, op('MULTIPLY', thick, 0.08)), mix.inputs['Fac'])
     nt.links.new(bsdf.outputs['BSDF'], mix.inputs[1]); nt.links.new(trans.outputs['BSDF'], mix.inputs[2])
     nt.links.new(mix.outputs['Shader'], out.inputs['Surface'])
     return m
@@ -307,7 +392,12 @@ def build_materials():
     mats = {
         # bowl: colours and log axis from revision round 5 (spec section 14), calibrated to R9/R10
         'wood': ring_wood('wood', *MULBERRY, (-8, -32), (0.22, 0.12), 1.6, 0.6, line_var=(0.55, 1.0)),
-        'lip': ring_wood('lip', *(muted(c) for c in ('#8e6c52', '#7c5c44', '#5a4030')), (-8, -32), (0.22, 0.12), 1.6, 0.7, line_var=(0.2, 0.6)),
+        # the planed flat face round the skin: same log, but its rings are cut so shallowly that
+        # the bowl's slow warp turned them into broad ragged terraces; with little warp they read
+        # as the long, straight stripes of a planed face (round 11)
+        'woodTop': ring_wood('woodTop', *MULBERRY, (-8, -32), (0.22, 0.12), 1.6, 0.6, warp_cm=0.12, line_var=(0.55, 1.0)),
+        # the lip under the skin's edge is bare wood: no satin coat (it caught the window as a pale band)
+        'lip': ring_wood('lip', *(muted(c) for c in ('#76583f', '#664833', '#4a3326')), (-8, -32), (0.22, 0.12), 1.6, 0.7, line_var=(0.2, 0.6)),
         # neck, head, pegs and fingerboard: quieter, close-grained woods (rings barely show)
         # neck and head: the same golden mulberry and satin finish as the bowl (user's request,
         # spec section 16), cut from the same log so the grain runs on along the instrument
@@ -335,6 +425,8 @@ def build_materials():
         if o.type != 'MESH':
             continue
         key = o.name.split('__')[-1].split('.')[0]
+        if o.name.startswith('body__top'):
+            key = 'woodTop'
         o.data.materials.clear()
         o.data.materials.append(mats.get(key, mats['wood']))
 
@@ -464,7 +556,8 @@ def ease(t):
 # hinge near its bottom end, and the rest of the scroll zooms in on its face.
 TIMELINE = {
     'scenes_end': 0.60,   # the seven scenes play over 0…60 % of the scroll
-    'fall': (0.62, 0.80),  # it falls over here…
+    'front': 0.64,         # it turns to face the camera squarely (user, round 11)…
+    'fall': (0.66, 0.82),  # …rests a moment, then falls straight over backwards…
     'zoom_end': 1.0,       # …and the camera comes down onto the face until the end
     # the hinge: on the back of the bowl, this many cm from the bottom end (TAR_HINGE_CM)
     'hinge_cm': float(os.environ.get('TAR_HINGE_CM', '10')),
@@ -504,6 +597,24 @@ def keyframe_state(p):
     }
 
 
+def pose_state(k):
+    """A single web-style pose as a scroll state."""
+    q = pose_quaternion(k['yaw'], k['pitch'])
+    world = Matrix.Translation(PIVOT) @ q.to_matrix().to_4x4() @ Matrix.Translation(-PIVOT)
+    target = world @ web_to_blender(k['target'])
+    e = math.radians(k['elev']); d = k['dist'] * CM
+    return {'q': q, 'world': world, 'target': target,
+            'cam': target + Vector((0, -math.cos(e) * d, math.sin(e) * d)),
+            'exposure': 1.0, 'aperture': 0.0}
+
+
+def blend_states(a, b, t):
+    q = a['q'].slerp(b['q'], t)
+    world = Matrix.Translation(PIVOT) @ q.to_matrix().to_4x4() @ Matrix.Translation(-PIVOT)
+    return {'q': q, 'world': world, 'target': a['target'].lerp(b['target'], t), 'cam': a['cam'].lerp(b['cam'], t),
+            'exposure': 1.0, 'aperture': 0.0}
+
+
 def fall_angle(t):
     """Degrees fallen at t (0…1): gravity speeds it up, it lands a hair past flat and settles."""
     full = TIMELINE['fall_deg']
@@ -517,7 +628,12 @@ def sample_scroll(p):
     T = TIMELINE
     if p <= T['scenes_end']:
         return keyframe_state(p / T['scenes_end'])
-    end = keyframe_state(1.0)
+    last = keyframe_state(1.0)
+    # straight on: the fall is seen from the front, square, with no turn left or right
+    front = dict(SCENES['keyframes'][-1], yaw=round(SCENES['keyframes'][-1]['yaw'] / 360) * 360, pitch=0, elev=2)
+    end = pose_state(front)
+    if p <= T['front']:
+        return blend_states(last, end, ease((p - T['scenes_end']) / (T['front'] - T['scenes_end'])))
     q0, w0 = end['q'], end['world']
     h = w0 @ hinge_local()
     axis = q0 @ Vector((1, 0, 0))
@@ -620,11 +736,18 @@ def main(argv):
         for k in SCENES['keyframes'][1:]:
             apply_pose(pivot, cam, k['yaw'], k['pitch'], k['target'], k['dist'], k['elev'], k.get('aperture', 0))
             render(sc, out / f"scene_{k['caption']}.png", seed=k['caption'], raw_dir=out / 'raw')
+    elif mode == 'at':
+        # one scroll position at a chosen size: at <p> [width height samples]
+        p = float(argv[1]); w, h, spp = (int(x) for x in (argv[2:5] if len(argv) >= 5 else (1600, 900, 96)))
+        sc, pivot, cam = setup(w, h, spp)
+        out = BUILD / 'at'; out.mkdir(parents=True, exist_ok=True)
+        apply_state(pivot, cam, sample_scroll(p))
+        render(sc, out / f'p{round(p * 1000):04d}_{w}.png', seed=round(p * 1000), raw_dir=out / 'raw')
     elif mode == 'tail':
         # quick look at the end of the scroll: the fall and the zoom (round 10)
         sc, pivot, cam = setup(960, 540, 32)
         out = BUILD / 'tail'; out.mkdir(parents=True, exist_ok=True)
-        for p in (0.60, 0.66, 0.70, 0.73, 0.76, 0.78, 0.80, 0.85, 0.90, 0.95, 1.0):
+        for p in (0.60, 0.64, 0.68, 0.72, 0.75, 0.78, 0.80, 0.82, 0.87, 0.93, 1.0):
             apply_state(pivot, cam, sample_scroll(p))
             render(sc, out / f'p{round(p * 100):03d}.png', seed=round(p * 1000), raw_dir=out / 'raw')
     elif mode == 'fall':
