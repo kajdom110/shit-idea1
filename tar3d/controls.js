@@ -11,8 +11,8 @@ const IDENTITY = new THREE.Quaternion();
 export function createRotationControls(element, { speed = 0.0065, returnAfter = 2.5 } = {}) {
   const user = new THREE.Quaternion();
   const q = new THREE.Quaternion();
-  let dragging = false, lastX = 0, lastY = 0, idle = Infinity;
-  const vel = { x: 0, y: 0 };
+  let dragging = false, lastX = 0, lastY = 0, lastT = 0, idle = Infinity;
+  const vel = { x: 0, y: 0 }; // radians per second, so coasting is the same at any frame rate
 
   function turn(ax, ay) {
     if (ax) user.premultiply(q.setFromAxisAngle(Y, ax));
@@ -23,7 +23,7 @@ export function createRotationControls(element, { speed = 0.0065, returnAfter = 
   element.addEventListener('pointerdown', (e) => {
     if (e.button !== 0) return;
     dragging = true;
-    lastX = e.clientX; lastY = e.clientY;
+    lastX = e.clientX; lastY = e.clientY; lastT = e.timeStamp;
     vel.x = vel.y = 0;
     element.setPointerCapture(e.pointerId);
     element.classList.add('is-dragging');
@@ -31,15 +31,23 @@ export function createRotationControls(element, { speed = 0.0065, returnAfter = 
   element.addEventListener('pointermove', (e) => {
     if (!dragging) return;
     const dx = (e.clientX - lastX) * speed, dy = (e.clientY - lastY) * speed;
-    lastX = e.clientX; lastY = e.clientY;
+    const dt = Math.max((e.timeStamp - lastT) / 1000, 1 / 240);
+    lastX = e.clientX; lastY = e.clientY; lastT = e.timeStamp;
     turn(dx, dy);
-    vel.x = dx; vel.y = dy;
+    // smoothed speed of the hand, used for the coast after letting go
+    vel.x = vel.x * 0.5 + (dx / dt) * 0.5;
+    vel.y = vel.y * 0.5 + (dy / dt) * 0.5;
     idle = 0;
   });
   const end = (e) => {
     if (!dragging) return;
     dragging = false;
     idle = 0;
+    // a hand that stopped before letting go should not coast
+    if (e && e.timeStamp - lastT > 80) vel.x = vel.y = 0;
+    const max = 6; // rad/s
+    vel.x = Math.max(-max, Math.min(max, vel.x));
+    vel.y = Math.max(-max, Math.min(max, vel.y));
     element.classList.remove('is-dragging');
     if (e && element.hasPointerCapture(e.pointerId)) element.releasePointerCapture(e.pointerId);
   };
@@ -61,9 +69,9 @@ export function createRotationControls(element, { speed = 0.0065, returnAfter = 
   function update(dt, { scrolling = false } = {}) {
     if (dragging) return true;
     let active = false;
-    if (Math.abs(vel.x) + Math.abs(vel.y) > 1e-5) {
-      turn(vel.x, vel.y);
-      const k = Math.exp(-dt * 5);
+    if (Math.abs(vel.x) + Math.abs(vel.y) > 1e-3) {
+      turn(vel.x * dt, vel.y * dt);
+      const k = Math.exp(-dt * 6);
       vel.x *= k; vel.y *= k;
       active = true;
     }

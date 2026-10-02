@@ -15,7 +15,6 @@ const { renderer, camera, pivot, holder } = studio;
 const manager = new THREE.LoadingManager();
 let dirty = true;
 manager.onProgress = () => { dirty = true; };
-manager.onLoad = () => { dirty = true; document.getElementById('loading').classList.add('done'); };
 
 const materials = createMaterials({ anisotropy: renderer.capabilities.getMaxAnisotropy(), manager });
 const { root } = buildInstrument(materials);
@@ -80,10 +79,48 @@ function apply(state) {
   dots.forEach((d, i) => d.classList.toggle('on', i === best));
 }
 
+/* ---------- test hook (only with ?test in the address) ---------- */
+let override = null, texturesReady = false;
+manager.onLoad = () => { texturesReady = true; dirty = true; document.getElementById('loading').classList.add('done'); };
+if (new URLSearchParams(location.search).has('test')) {
+  document.body.classList.add('is-test');
+  const deg = THREE.MathUtils.degToRad;
+  window.__tar = {
+    ready: () => texturesReady,
+    // fixed pose: turn (yaw) and tip (pitch) in degrees, whole instrument in frame
+    pose(yaw, pitch, { dist = 290, target = [PIVOT.x, PIVOT.y, PIVOT.z], aperture = 0 } = {}) {
+      const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), deg(pitch))
+        .multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), deg(yaw)));
+      override = { quaternion: q, target: new THREE.Vector3(...target), dist, elev: 0, exposure: 1, aperture, captions: {} };
+      dirty = true;
+    },
+    scroll(p) { override = null; progress = p; window.scrollTo(0, p * (document.documentElement.scrollHeight - window.innerHeight)); dirty = true; },
+    release() { override = null; dirty = true; },
+    userQuaternion: () => controls.quaternion.toArray(),
+    // advance the rotation controls by simulated time (headless test browsers render too slowly for real time)
+    advance(seconds) { for (let t = 0; t < seconds; t += 1 / 60) controls.update(1 / 60); dirty = true; },
+    stats() {
+      let meshes = 0, triangles = 0;
+      root.traverse((o) => {
+        if (!o.isMesh) return;
+        meshes++;
+        const g = o.geometry;
+        triangles += (g.index ? g.index.count : g.attributes.position.count) / 3;
+      });
+      return { meshes, triangles: Math.round(triangles), programs: renderer.info.programs.length, textures: renderer.info.memory.textures, geometries: renderer.info.memory.geometries };
+    },
+  };
+}
+
 /* ---------- loop ---------- */
 const clock = new THREE.Clock();
 function frame() {
   const dt = Math.min(clock.getDelta(), 0.05);
+  if (override) {
+    if (dirty) { apply(override); studio.render(); dirty = false; }
+    requestAnimationFrame(frame);
+    return;
+  }
   const goal = scrollTarget();
   const scrolling = Math.abs(goal - progress) > 1e-4;
   // the camera follows the scroll with a short, smooth lag rather than jumping with each wheel step

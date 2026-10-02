@@ -82,12 +82,13 @@ export function createMaterials({ anisotropy = 8, manager } = {}) {
   const wood = makeWood(
     // kaseh and naghareh: honey mulberry, a little dark; rings centred in front of the skin,
     // so the carved back shows broad arcs
-    { light: '#b27a40', dark: '#6f3d19', line: '#3b1d0a', axis: [0, 9], freq: 1.35, warp: 0.9, pore: 0.55, figure: 0.55, bump: 0.03 },
-    { roughness: 0.42, clearcoat: 0.35, clearcoatRoughness: 0.32 },
+    { light: '#8f6230', dark: '#4a2a10', line: '#2a1606', axis: [0, 9], freq: 2.2, warp: 1.1, pore: 0.3, figure: 0.7, bump: 0.03 },
+    // varnished: crisp highlights like the reference (R6), but softer than its mirror gloss
+    { roughness: 0.45, clearcoat: 0.55, clearcoatRoughness: 0.2, envMapIntensity: 0.75 },
   );
   const lightWood = makeWood(
     // neck and heel: paler, straighter grain
-    { light: '#c99b5e', dark: '#986a31', line: '#5b3a18', axis: [0, -1.5], freq: 2.2, warp: 0.4, pore: 0.45, figure: 0.35, bump: 0.02 },
+    { light: '#b98a4c', dark: '#86592a', line: '#4f3115', axis: [0, -1.5], freq: 2.6, warp: 0.4, pore: 0.45, figure: 0.35, bump: 0.02 },
     { roughness: 0.5, clearcoat: 0.25, clearcoatRoughness: 0.4 },
   );
   const headWood = makeWood(
@@ -117,8 +118,9 @@ export function createMaterials({ anisotropy = 8, manager } = {}) {
   const skin = new THREE.MeshPhysicalMaterial({
     map: T('skin_albedo.webp', { repeat: skinRepeat }),
     bumpMap: T('skin_height.webp', { srgb: false, repeat: skinRepeat }),
-    bumpScale: 1.5,
+    bumpScale: 0.6, // phase 7: 1.5 looked gritty at grazing angles
     roughness: 0.72,
+    color: '#e2dacb', // slightly dims the albedo so the skin does not wash out under the key light
     sheen: 0.5, sheenRoughness: 0.7, sheenColor: new THREE.Color('#b8aa92'),
     side: THREE.DoubleSide,
   });
@@ -146,8 +148,8 @@ export function createMaterials({ anisotropy = 8, manager } = {}) {
   const bone = new THREE.MeshPhysicalMaterial({
     map: T('bone_albedo.webp', { repeat: boneRepeat }),
     bumpMap: T('bone_height.webp', { srgb: false, repeat: boneRepeat }),
-    bumpScale: 0.8, roughness: 0.38, clearcoat: 0.2, clearcoatRoughness: 0.35,
-    sheen: 0.25, sheenColor: new THREE.Color('#f2e6c8'), side: THREE.DoubleSide,
+    // the colour slightly dims the cream texture: under the studio key it otherwise reads as white plastic
+    color: '#d6c9ae', bumpScale: 0.8, roughness: 0.42, clearcoat: 0.15, clearcoatRoughness: 0.4, side: THREE.DoubleSide,
   });
   // For small parts with 0–1 UVs per face (nut, tailpiece)
   const boneSmall = bone.clone();
@@ -163,8 +165,8 @@ export function createMaterials({ anisotropy = 8, manager } = {}) {
 
   const gut = new THREE.MeshPhysicalMaterial({
     map: T('gut.webp', { repeat: [120, 1] }),
-    roughness: 0.45, clearcoat: 0.3, clearcoatRoughness: 0.35,
-    sheen: 0.4, sheenColor: new THREE.Color('#f4e6bc'),
+    color: '#cfae6a', // straw, as on the reference close-ups
+    roughness: 0.5, clearcoat: 0.2, clearcoatRoughness: 0.4,
   });
 
   const metal = new THREE.MeshPhysicalMaterial({ color: '#d4d4d2', metalness: 1, roughness: 0.25 });

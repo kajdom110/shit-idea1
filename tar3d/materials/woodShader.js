@@ -41,14 +41,16 @@ float wFbm(vec3 p) {
 vec3 woodPattern(vec3 p) {
   // grain runs along y: noise is stretched along it
   vec3 g = vec3(p.x, p.y * 0.12, p.z);
-  float warp = (wFbm(g * 0.45) - 0.5) * woodWarp;
+  // two scales of warp so rings wander rather than forming even contour lines
+  float warp = (wFbm(g * 0.45) - 0.5) * woodWarp + (wFbm(g * 1.7 + 3.1) - 0.5) * woodWarp * 0.35;
   float r = length(p.xz - woodAxis) + warp;
-  float ring = fract(r * woodFreq);
+  // ring width varies from year to year
+  float ring = fract(r * woodFreq + wFbm(g * 0.3 + 7.3) * 1.5);
   float late = smoothstep(0.45, 1.0, ring);
-  float line = smoothstep(0.9, 0.97, ring) * (1.0 - smoothstep(0.985, 1.0, ring));
+  float line = smoothstep(0.82, 0.96, ring) * (1.0 - smoothstep(0.975, 1.0, ring));
   float pore = smoothstep(0.74, 0.92, wNoise(vec3(p.x * 34.0, p.y * 0.9, p.z * 34.0))) * woodPore;
   float figure = (wFbm(g * vec3(1.1, 1.6, 1.1)) - 0.5) * woodFigure;
-  return vec3(clamp(late * 0.75 + figure, 0.0, 1.0), line, pore);
+  return vec3(clamp(late * 0.6 + figure + 0.1, 0.0, 1.0), line, pore);
 }
 `;
 
@@ -76,15 +78,15 @@ export function makeWood(params, base = {}) {
       .replace('#include <map_fragment>', `#include <map_fragment>
         vec3 wPat = woodPattern(vWoodPos);
         vec3 wCol = mix(woodLight, woodDark, wPat.x);
-        wCol = mix(wCol, woodLine, wPat.y * 0.75);
+        wCol = mix(wCol, woodLine, wPat.y * 0.35);
         wCol *= 1.0 - wPat.z * 0.45;
         diffuseColor.rgb *= wCol;`)
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
         roughnessFactor = clamp(roughnessFactor * (1.0 + wPat.z * 0.35 + wPat.y * 0.1), 0.0, 1.0);`)
       .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
         {
-          // pores and latewood lines are very slightly sunk into the surface
-          float wH = (-wPat.y * 0.5 - wPat.z) * woodBump;
+          // only the latewood lines are sunk; bumping the tiny pores made them sparkle from a distance
+          float wH = -wPat.y * 0.5 * woodBump;
           vec3 sx = dFdx(-vViewPosition), sy = dFdy(-vViewPosition);
           vec3 r1 = cross(sy, normal), r2 = cross(normal, sx);
           float det = dot(sx, r1) * faceDirection;

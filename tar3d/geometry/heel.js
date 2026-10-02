@@ -74,7 +74,8 @@ export function buildHeel(materials) {
     }
     rows.push({ y, pts });
   }
-  const mesh = new THREE.Mesh(loft(rows), materials.lightWood);
+  // R3: the heel is a separate piece in the darker bowl wood
+  const mesh = new THREE.Mesh(loft(rows), materials.wood);
   mesh.name = 'heel';
   mesh.castShadow = mesh.receiveShadow = true;
   const group = new THREE.Group();

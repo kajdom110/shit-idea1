@@ -23,7 +23,7 @@ function studioEnvironment(renderer) {
     m.lookAt(0, 0, 0);
     env.add(m);
   };
-  box(6, 4, 0xfff4e6, 6, [0, 6, 3]);
+  box(6, 4, 0xfff4e6, 3.5, [0, 6, 3]); // phase 7: 6 bleached the varnish when the front tipped up
   box(1.6, 7, 0xffeedd, 3, [-6, 1, 1]);
   box(1.0, 6, 0xffe2c8, 2.5, [5, 1, -5]);
   box(12, 2, 0x2a2420, 1, [0, -5, 0]); // faint floor bounce
@@ -70,7 +70,7 @@ export function createScene(container, { dof = true } = {}) {
   camera.position.set(0, 0, 270);
 
   /* ---------- lights ---------- */
-  const key = new THREE.DirectionalLight(0xfff3e4, 2.6);
+  const key = new THREE.DirectionalLight(0xfff3e4, 2.3);
   key.position.set(-60, 160, 140);
   key.castShadow = true;
   key.shadow.mapSize.set(2048, 2048);

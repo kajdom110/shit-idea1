@@ -10,7 +10,7 @@ import * as THREE from 'three';
 import { BODY } from '../dimensions.js';
 import { clamp, smax, lobe, lobeReach, stations, loft, symmetricShape, shapeWithHoles, wallStrip } from './util.js';
 
-const P_OUTLINE = 2.1; // slightly fuller than an ellipse, as in the photos
+const P_OUTLINE = 2.1; // slightly fuller than an ellipse; phase 7 tried 1.9 and it fitted R4 worse
 const P_DEPTH = 2.0;
 
 /* ---------- outline W(y) ---------- */
