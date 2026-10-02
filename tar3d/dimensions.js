@@ -94,8 +94,14 @@ export const HEAD = {
   height: TOTAL_LENGTH - NECK.nutY, // = 13 (F1: 0.134 of total length)
   width: 4.0, // F1: slightly wider than the neck at the nut
   depth: 3.4,
-  slot: { width: 1.6, top: 1.5, bottom: 11.5 }, // from the top of the head (R5)
-  wall: 0.6,
+  // From the top of the head (R5). The slot opens right behind the nut so the strings can
+  // run from the nut straight down to their pegs.
+  slot: { width: 1.6, top: 1.5, bottom: 12.7 },
+  wall: 0.6, // back wall behind the slot
+  cornerRadius: 0.3,
+  bevel: 0.08, // softened edges of the head block
+  // Cusped (three-lobed) cut-outs at both ends of the slot (R5)
+  cusp: { centreRadius: 0.55, sideRadius: 0.32, sideOffset: 0.5, height: 1.0 },
 };
 
 // Pegs: three each side, staggered (R5). `at` is the distance from the top of the head
@@ -113,7 +119,7 @@ export const PEGS = {
     { side: +1, at: 0.49, string: 3 },
     { side: -1, at: 0.59, string: 4 },
     { side: -1, at: 0.82, string: 5 },
-    { side: +1, at: 0.9, string: 6 },
+    { side: +1, at: 0.87, string: 6 },
   ],
 };
 
@@ -128,14 +134,21 @@ export const BRIDGE = {
 
 export const TAILPIECE = {
   width: 2.6,
-  length: 4.5, // runs down over the bottom of the rim (F1, R4)
+  length: 2.8, // R4: sits on the wood below the lower skin opening
+  y0: 0.2, // bottom end, just above the bottom of the kaseh
   thickness: 0.4,
+  pinY: 1.2, // where the strings are hooked
+  radius: 0.15,
 };
 
 // Six strings in three courses. Gauges are diameters in cm.
 export const STRINGS = {
   spanAtNut: 1.9, // outer string to outer string
   spanAtBridge: 3.4,
+  spanAtTail: 1.8,
+  pairGap: 0.5, // between the two strings of a course, at the bridge
+  coilTurns: 3, // turns wound on each peg shaft
+  coilWidth: 0.35,
   gauges: [0.025, 0.025, 0.03, 0.03, 0.035, 0.05],
   wound: [false, false, false, false, false, true], // the low course has one wound bronze string
 };

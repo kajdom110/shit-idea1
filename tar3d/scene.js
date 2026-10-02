@@ -54,5 +54,6 @@ export function placeholderMaterials() {
     gut: m(0xe0c98a),
     horn: m(0x7a4a22),
     inlay: m(0xcdb894, { roughness: 0.5 }),
+    bronze: m(0xb08850, { metalness: 1, roughness: 0.35 }),
   };
 }
