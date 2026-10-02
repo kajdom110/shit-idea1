@@ -23,6 +23,9 @@ uniform float woodFiber;
 uniform float woodBias;
 uniform float woodLineAmount;
 uniform float woodLateAmount;
+uniform float woodFine;
+uniform float woodLineMin;
+uniform vec2 woodLineBand;
 
 float wHash(vec3 p) {
   p = fract(p * 0.3183099 + vec3(0.71, 0.113, 0.419));
@@ -63,12 +66,13 @@ vec3 woodPattern(vec3 p) {
   float ring = fract(years + (wNoise(vec3(p.x * 6.0, p.y * 0.3, p.z * 6.0)) - 0.5) * 0.08);
   // each year's latewood line has its own strength: some lines strong, many faint
   float yearHash = fract(sin(floor(years) * 12.9898) * 43758.5453);
-  float lineStrength = 0.25 + 0.75 * yearHash * yearHash;
+  float lineStrength = woodLineMin + (1.0 - woodLineMin) * yearHash * yearHash;
   // earlywood is light; the wood darkens through the year into the latewood line,
   // then the next year starts light again
   float late = smoothstep(0.35, 0.92, ring);
   float aa = clamp(fwidth(years) * 1.5, 0.0, 0.5); // softens lines that get close to a pixel apart
-  float line = smoothstep(0.86 - aa, 0.95, ring) * (1.0 - smoothstep(0.985 - aa, 1.0, ring)) * lineStrength;
+  // latewood band: its start sets how thick the dark band is (R9: about a third of each year)
+  float line = smoothstep(woodLineBand.x - aa, woodLineBand.y, ring) * (1.0 - smoothstep(0.985 - aa, 1.0, ring)) * lineStrength;
   // ring-porous wood: the dark line is made of rows of open pores, so it reads as fine dashes
   // along the grain rather than a smooth printed band (averaged out where it gets too small to see)
   float poreRow = wNoise(vec3(p.x * 22.0, p.y * 0.7, p.z * 22.0));
@@ -77,7 +81,10 @@ vec3 woodPattern(vec3 p) {
   float pore = smoothstep(0.75, 0.92, wNoise(vec3(p.x * 34.0, p.y * 0.9, p.z * 34.0))) * woodPore * woodDetailFade(p) * (1.0 - late);
   // very gentle colour drift along the grain; no blotches
   float figure = (wFbm(vec3(p.x * 0.6, p.y * 0.03, p.z * 0.6) + 11.0) - 0.5) * woodFigure;
-  return vec3(clamp(late * woodLateAmount + figure + woodBias, 0.0, 1.0), line, pore);
+  // fine streaks of pores running parallel to the rings inside each year (R9, R11)
+  float fine = (0.5 + 0.5 * sin(6.2831853 * (years * 3.0 + wNoise(vec3(p.x * 3.0, p.y * 0.2, p.z * 3.0)) * 0.8)))
+             * woodFine * (1.0 - clamp(fwidth(years) * 2.0, 0.0, 1.0));
+  return vec3(clamp(late * woodLateAmount + figure + woodBias + fine, 0.0, 1.0), line, pore);
 }
 `;
 
@@ -98,6 +105,9 @@ export function makeWood(params, base = {}) {
     woodBias: { value: params.bias ?? 0.1 }, // shifts the balance of light and dark wood
     woodLineAmount: { value: params.lineAmount ?? 0.15 }, // strength of the thin latewood lines
     woodLateAmount: { value: params.lateAmount ?? 0.4 }, // light-to-dark swing across each ring
+    woodFine: { value: params.fine ?? 0 }, // fine pore streaks parallel to the rings
+    woodLineMin: { value: params.lineMin ?? 0.25 }, // weakest year's line strength (strongest is 1)
+    woodLineBand: { value: new THREE.Vector2(...(params.lineBand || [0.86, 0.95])) }, // where the dark band starts and reaches full strength
   };
   mat.userData.wood = u;
   mat.onBeforeCompile = (shader) => {
