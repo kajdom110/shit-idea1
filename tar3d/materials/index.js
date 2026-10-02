@@ -80,11 +80,11 @@ export function createMaterials({ anisotropy = 8, manager } = {}) {
 
   /* ---------- woods ---------- */
   const wood = makeWood(
-    // kaseh and naghareh: honey mulberry, a little dark; rings centred in front of the skin,
-    // so the carved back shows broad arcs
-    { light: '#8f6230', dark: '#4a2a10', line: '#2a1606', axis: [0, 9], freq: 2.2, warp: 1.1, pore: 0.3, figure: 0.7, bump: 0.03 },
-    // varnished: crisp highlights like the reference (R6), but softer than its mirror gloss
-    { roughness: 0.45, clearcoat: 0.55, clearcoatRoughness: 0.2, envMapIntensity: 0.75 },
+    // kaseh and naghareh: deep red-brown of the first photo (F1), sampled in section 10;
+    // satin, not polished, with fibres and pores visible
+    { light: '#8a4008', dark: '#0b0100', line: '#070100', axis: [0, 9], freq: 3.0, warp: 1.1, pore: 0.6, figure: 1.0, bump: 0.03, fiber: 0.35, bias: 0.3 },
+    // satin oil finish: a soft sheen, far less than a polished lacquer
+    { roughness: 0.5, clearcoat: 0.25, clearcoatRoughness: 0.38, envMapIntensity: 0.45, specularIntensity: 0.65 },
   );
   const lightWood = makeWood(
     // neck and heel: paler, straighter grain
@@ -110,6 +110,11 @@ export function createMaterials({ anisotropy = 8, manager } = {}) {
     // bridge: polished horn, long amber streaks
     { light: '#a2723c', dark: '#4a2a12', line: '#2a160a', axis: [0, 0], freq: 0.8, warp: 1.5, pore: 0, figure: 0.9, bump: 0 },
     { roughness: 0.28, clearcoat: 0.6, clearcoatRoughness: 0.2 },
+  );
+  const lip = makeWood(
+    // the pale, unvarnished wooden lip round the skin (R4)
+    { light: '#b8945f', dark: '#8c6b3c', line: '#6a4e2a', axis: [0, 9], freq: 2.4, warp: 0.6, pore: 0.4, figure: 0.4, bump: 0.02, fiber: 0.45 },
+    { roughness: 0.68, clearcoat: 0 },
   );
   const cavity = new THREE.MeshStandardMaterial({ color: '#150c07', roughness: 0.95, side: THREE.DoubleSide });
 
@@ -174,5 +179,5 @@ export function createMaterials({ anisotropy = 8, manager } = {}) {
   const stringSteel = makeString(metal, 0.014);
   const stringBronze = makeString(bronze, 0.025);
 
-  return { wood, lightWood, headWood, pegWood, boardWood, horn, cavity, skin, bone, boneSmall, inlay, gut, metal, bronze, stringSteel, stringBronze };
+  return { wood, lightWood, headWood, pegWood, boardWood, horn, lip, cavity, skin, bone, boneSmall, inlay, gut, metal, bronze, stringSteel, stringBronze };
 }

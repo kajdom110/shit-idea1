@@ -18,6 +18,8 @@ uniform float woodWarp;
 uniform float woodPore;
 uniform float woodFigure;
 uniform float woodBump;
+uniform float woodFiber;
+uniform float woodBias;
 
 float wHash(vec3 p) {
   p = fract(p * 0.3183099 + vec3(0.71, 0.113, 0.419));
@@ -37,6 +39,10 @@ float wFbm(vec3 p) {
   for (int i = 0; i < 4; i++) { s += a * wNoise(p); p = p * 2.03 + 0.17; a *= 0.5; }
   return s;
 }
+// Fades detail that would be finer than a pixel, so pores and fibres never sparkle.
+float woodDetailFade(vec3 p) {
+  return 1.0 - smoothstep(0.004, 0.02, length(fwidth(p)));
+}
 // x: tone (0 light … 1 dark), y: latewood line, z: pore
 vec3 woodPattern(vec3 p) {
   // grain runs along y: noise is stretched along it
@@ -46,11 +52,14 @@ vec3 woodPattern(vec3 p) {
   float r = length(p.xz - woodAxis) + warp;
   // ring width varies from year to year
   float ring = fract(r * woodFreq + wFbm(g * 0.3 + 7.3) * 1.5);
-  float late = smoothstep(0.45, 1.0, ring);
+  // smooth and periodic: no hard edge where one ring meets the next (that read as a contour map)
+  float late = pow(0.5 - 0.5 * cos(6.2831853 * ring), 1.5);
   float line = smoothstep(0.82, 0.96, ring) * (1.0 - smoothstep(0.975, 1.0, ring));
-  float pore = smoothstep(0.74, 0.92, wNoise(vec3(p.x * 34.0, p.y * 0.9, p.z * 34.0))) * woodPore;
-  float figure = (wFbm(g * vec3(1.1, 1.6, 1.1)) - 0.5) * woodFigure;
-  return vec3(clamp(late * 0.6 + figure + 0.1, 0.0, 1.0), line, pore);
+  float pore = smoothstep(0.7, 0.9, wNoise(vec3(p.x * 34.0, p.y * 0.9, p.z * 34.0))) * woodPore * woodDetailFade(p);
+  // broad streaks that run with the grain carry most of the colour, as in real mulberry
+  float figure = (wFbm(vec3(p.x * 0.9, p.y * 0.05, p.z * 0.9) + 11.0) - 0.5) * woodFigure * 1.4
+               + (wFbm(g * vec3(1.1, 1.6, 1.1)) - 0.5) * woodFigure * 0.5;
+  return vec3(clamp(late * 0.4 + figure + woodBias, 0.0, 1.0), line, pore);
 }
 `;
 
@@ -66,6 +75,8 @@ export function makeWood(params, base = {}) {
     woodPore: { value: params.pore ?? 0.6 },
     woodFigure: { value: params.figure ?? 0.5 },
     woodBump: { value: params.bump ?? 0.02 },
+    woodFiber: { value: params.fiber ?? 0.3 },
+    woodBias: { value: params.bias ?? 0.1 }, // shifts the balance of light and dark wood
   };
   mat.userData.wood = u;
   mat.onBeforeCompile = (shader) => {
@@ -78,15 +89,21 @@ export function makeWood(params, base = {}) {
       .replace('#include <map_fragment>', `#include <map_fragment>
         vec3 wPat = woodPattern(vWoodPos);
         vec3 wCol = mix(woodLight, woodDark, wPat.x);
-        wCol = mix(wCol, woodLine, wPat.y * 0.35);
+        wCol = mix(wCol, woodLine, wPat.y * 0.08);
         wCol *= 1.0 - wPat.z * 0.45;
+        // fine fibres along the grain: raw wood, not a painted surface
+        float wFade = woodDetailFade(vWoodPos);
+        float wFib = wNoise(vec3(vWoodPos.x * 60.0, vWoodPos.y * 1.4, vWoodPos.z * 60.0));
+        wCol *= 1.0 + (wFib - 0.5) * woodFiber * wFade;
         diffuseColor.rgb *= wCol;`)
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
-        roughnessFactor = clamp(roughnessFactor * (1.0 + wPat.z * 0.35 + wPat.y * 0.1), 0.0, 1.0);`)
+        // the finish is uneven, as on a played instrument: patches of slightly duller sheen
+        float wWear = wFbm(vWoodPos * vec3(0.18, 0.06, 0.18));
+        roughnessFactor = clamp(roughnessFactor * (1.0 + wPat.z * 0.35 + wPat.y * 0.1) * mix(0.85, 1.25, wWear), 0.0, 1.0);`)
       .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
         {
-          // only the latewood lines are sunk; bumping the tiny pores made them sparkle from a distance
-          float wH = -wPat.y * 0.5 * woodBump;
+          // latewood lines, pores and fibres are sunk very slightly; detail fades before it can alias
+          float wH = (-wPat.y * 0.5 - wPat.z * 0.6 + (wFib - 0.5) * woodFiber * 0.5 * wFade) * woodBump;
           vec3 sx = dFdx(-vViewPosition), sy = dFdy(-vViewPosition);
           vec3 r1 = cross(sy, normal), r2 = cross(normal, sx);
           float det = dot(sx, r1) * faceDirection;
