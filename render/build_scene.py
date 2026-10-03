@@ -519,7 +519,7 @@ class Nodes:
 ROSEWOOD = ('#0e0301', '#2e0b02', '#581a06', '#8c3410')  # deep, dark, mid, light (sample: mean 73 32 18)
 
 
-def rosewood(name, tones=ROSEWOOD, gloss=1.0, stripes=0, stripe_axis_y=0.0, stripe_top=1.0, scale=1.0, spec=0.5, rough=0.42, wave=0.02, coat_rough=0.11):
+def rosewood(name, tones=ROSEWOOD, gloss=1.0, stripes=0, stripe_axis_y=0.0, stripe_top=1.0, scale=1.0, spec=0.5, rough=0.42, wave=0.02, coat_rough=0.11, carve_from=None):
     """Dark red-brown wood with long, wavy flame streaks along the instrument (Blender z) and a
     deep, glossy lacquer. stripes>0 adds that many thin pale inlay lines round the bowl's long
     axis (one down the middle of the back), as on the samples."""
@@ -559,8 +559,34 @@ def rosewood(name, tones=ROSEWOOD, gloss=1.0, stripes=0, stripe_axis_y=0.0, stri
     bsdf.inputs['Coat Weight'].default_value = gloss
     bsdf.inputs['Coat Roughness'].default_value = coat_rough
     bsdf.inputs['Coat IOR'].default_value = 1.5
-    bump = g.new('ShaderNodeBump', Strength=0.04, Distance=0.0004)
-    g.link(fib.outputs['Fac'], bump.inputs['Height']); g.link(bump.outputs['Normal'], bsdf.inputs['Normal'])
+    height = fib.outputs['Fac']
+    strength = 0.04
+    if carve_from is not None:
+        # Round 19: the carved panel at the top of the head (samples): a lattice of diamonds cut
+        # into the wood, each with a small raised boss, on every face above carve_from (m).
+        sep = g.new('ShaderNodeSeparateXYZ'); g.link(co, sep.inputs[0])
+        nrm = g.new('ShaderNodeSeparateXYZ'); g.link(g.new('ShaderNodeNewGeometry').outputs['Normal'], nrm.inputs[0])
+        side = g.op('GREATER_THAN', g.op('ABSOLUTE', nrm.outputs['X']), 0.5)
+        u = g.op('ADD', g.op('MULTIPLY', side, sep.outputs['Y']), g.op('MULTIPLY', g.op('SUBTRACT', 1.0, side), sep.outputs['X']))
+        cell = 0.01
+        a = g.op('DIVIDE', g.op('ADD', u, sep.outputs['Z']), cell)
+        b = g.op('DIVIDE', g.op('SUBTRACT', u, sep.outputs['Z']), cell)
+        da = g.op('ABSOLUTE', g.op('SUBTRACT', g.op('FRACT', a), 0.5))
+        db = g.op('ABSOLUTE', g.op('SUBTRACT', g.op('FRACT', b), 0.5))
+        groove = g.new('ShaderNodeMapRange', **{'From Min': 0.09, 'From Max': 0.01})
+        g.link(g.op('MINIMUM', da, db), groove.inputs['Value'])        # 1 in the cut lines
+        boss = g.new('ShaderNodeMapRange', **{'From Min': 0.42, 'From Max': 0.5})
+        g.link(g.op('MINIMUM', da, db), boss.inputs['Value'])          # 1 on the raised centre
+        region = g.new('ShaderNodeMapRange', **{'From Min': carve_from, 'From Max': carve_from + 0.002})
+        g.link(sep.outputs['Z'], region.inputs['Value'])
+        cut = g.op('MULTIPLY', groove.outputs['Result'], region.outputs['Result'])
+        col = g.mix(g.op('MULTIPLY', cut, 0.7), col, srgb('#1a0602'))
+        g.link(col, bsdf.inputs['Base Color'])
+        height = g.op('ADD', g.op('MULTIPLY', height, 0.05),
+                      g.op('MULTIPLY', g.op('SUBTRACT', g.op('MULTIPLY', boss.outputs['Result'], 0.5), cut), region.outputs['Result']))
+        strength = 0.5
+    bump = g.new('ShaderNodeBump', Strength=strength, Distance=0.0004)
+    g.link(height, bump.inputs['Height']); g.link(bump.outputs['Normal'], bsdf.inputs['Normal'])
     return m
 
 
@@ -695,6 +721,34 @@ def parchment_skin():
         line = g.op('MULTIPLY', line, gate_v.outputs['Result'])
         col = g.mix(1.0, col, g.grey(g.op('SUBTRACT', 1.0, g.op('MULTIPLY', line, depth))), 'MULTIPLY')
         veins = line if veins is None else g.op('ADD', veins, line)
+    # Round 19: a played skin, as in the samples — fine scratches running every which way
+    # (long, thin cell edges of stretched Voronoi patterns at a few angles, each let through
+    # only in places), a few darker stains and lighter scuffs.
+    scr_h = None
+    for k, (ang, sx, sy, sc) in enumerate(((0.3, 1.0, 9.0, 60.0), (1.4, 1.0, 16.0, 45.0), (2.3, 1.0, 11.0, 50.0), (-0.8, 1.0, 18.0, 70.0))):
+        mp2 = g.new('ShaderNodeMapping'); mp2.inputs['Rotation'].default_value = (0.0, ang, 0.0)
+        mp2.inputs['Scale'].default_value = (sx, 1.0, sy)
+        g.link(co, mp2.inputs['Vector'])
+        vo = g.new('ShaderNodeTexVoronoi', Scale=sc); vo.feature = 'DISTANCE_TO_EDGE'
+        vo.inputs['Randomness'].default_value = 1.0
+        g.link(mp2.outputs['Vector'], vo.inputs['Vector'])
+        ln = g.op('SUBTRACT', 1.0, g.op('MINIMUM', g.op('DIVIDE', vo.outputs['Distance'], 0.03), 1.0))
+        gn = g.noise(co, 20.0 + 9 * k, detail=1)
+        gm = g.new('ShaderNodeMapRange', **{'From Min': 0.5 + 0.06 * (k % 2), 'From Max': 0.62 + 0.06 * (k % 2)}); g.link(gn.outputs['Fac'], gm.inputs['Value'])
+        ln = g.op('MULTIPLY', ln, gm.outputs['Result'])
+        if k % 2:  # pale scuff-scratches, as on the samples
+            col = g.mix(g.op('MULTIPLY', ln, 0.3), col, srgb('#b8a994'))
+        else:      # dark ones, where dirt has settled
+            col = g.mix(g.op('MULTIPLY', ln, 0.7), col, srgb('#241d17'))
+        scr_h = ln if scr_h is None else g.op('MAXIMUM', scr_h, ln)
+    stain = g.noise(co, 16.0, detail=3, rough=0.6)
+    st = g.new('ShaderNodeMapRange', **{'From Min': 0.56, 'From Max': 0.7}); st.interpolation_type = 'SMOOTHSTEP'
+    g.link(stain.outputs['Fac'], st.inputs['Value'])
+    col = g.mix(g.op('MULTIPLY', st.outputs['Result'], 0.6), col, srgb('#2e251d'))
+    scuff = g.noise(co, 11.0, detail=4)
+    sf = g.new('ShaderNodeMapRange', **{'From Min': 0.58, 'From Max': 0.75}); g.link(scuff.outputs['Fac'], sf.inputs['Value'])
+    col = g.mix(g.op('MULTIPLY', sf.outputs['Result'], 0.3), col, srgb('#a69683'))
+    veins = g.op('ADD', veins, g.op('MULTIPLY', scr_h, -0.8))  # scratches cut into the surface
     # darker where it is glued down at the edge
     ev, _ = edge_value(g, co, SKIN_EDGE)
     sc = g.new('ShaderNodeSeparateColor'); g.link(ev, sc.inputs['Color'])
@@ -760,8 +814,8 @@ def build_materials():
             'woodTop': rosewood('rw_top', wave=0.06, coat_rough=0.2),
             # the head's flat front faces the window squarely in the opening scenes and mirrored
             # it as a pale grey slab: a softer, satin finish keeps it dark red-brown
-            'headWood': rosewood('rw_head', scale=2.0, gloss=0.0, spec=0.15, rough=0.6),
-            'pegWood': rosewood('rw_peg', tones=('#1e0904', '#40150a', '#6a2a12', '#8a4020'), scale=3.0),
+            'headWood': rosewood('rw_head', scale=2.0, gloss=0.0, spec=0.15, rough=0.6, carve_from=0.912),
+            'pegWood': rosewood('rw_peg', tones=('#1e0904', '#40150a', '#6a2a12', '#8a4020'), scale=3.0, gloss=0.35, coat_rough=0.25),
             'boardWood': rosewood('rw_board', tones=('#1a0703', '#33100a', '#561e0e', '#6e2a14'), scale=2.0),
             # round 17: the neck back is the body's wood; only the fingerboard face is pale
             'lightWood': rosewood('rw_neck', scale=1.5),
@@ -1132,6 +1186,18 @@ def main(argv):
             for pitch in (0, -30, -60, -75, -90):
                 apply_pose(pivot, cam, yaw, pitch, [c['x'], c['y'], c['z']], 250, 0)
                 render(sc, out / f'y{yaw:+04d}_p{pitch:+03d}.png', seed=(yaw + 360) * 100 + pitch + 100, raw_dir=out / 'raw')
+    elif mode == 'plist':
+        # Round 19: the scroll frames at the scroll positions in build/plist.json — evenly spaced,
+        # with extra frames in between where the camera moves fastest (R6 report).
+        plist = json.loads((BUILD / 'plist.json').read_text())
+        sc, pivot, cam = setup(1600, 900, 96)
+        out = HERE / 'frames_raw' / 'scroll'; out.mkdir(parents=True, exist_ok=True)
+        for f, p in enumerate(plist):
+            path = out / f'{f:04d}.png'
+            if path.exists():
+                continue
+            apply_state(pivot, cam, sample_scroll(p))
+            render(sc, path, seed=f, raw_dir=HERE / 'frames_raw' / 'scroll_raw')
     elif mode == 'scroll':
         start, end = int(argv[1]), int(argv[2])
         total = int(argv[3]) if len(argv) > 3 else 240

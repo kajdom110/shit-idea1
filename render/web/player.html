@@ -126,11 +126,18 @@
     let lastSheet = null;
 
     let frameIndex = 0;
+    // frames are denser where the camera moves fastest: find the one nearest the scroll position
+    const P = data.p || Array.from({ length: N }, (_, i) => i / (N - 1));
+    function nearestFrame(p) {
+      let lo = 0, hi = N - 1;
+      while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (P[mid] <= p) lo = mid; else hi = mid; }
+      return p - P[lo] <= P[hi] - p ? lo : hi;
+    }
     function draw() {
       drawQueued = false;
       ctx.fillStyle = '#000';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
-      frameIndex = Math.round(scrollP * (N - 1));
+      frameIndex = nearestFrame(scrollP);
       if (fade < 1) drawCover(nearestLoaded(frameIndex), 1);
       if (fade > 0) contain(sheetImage(), fade);
 

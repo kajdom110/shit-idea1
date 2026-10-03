@@ -30,8 +30,12 @@ function pegGeometry() {
     if (u < 2.6) continue;
     const phi = Math.atan2(z, x);
     const fade = Math.min(1, (u - 2.6) / 0.4);
-    const end = u > 4.9 ? 1 + 0.12 * Math.cos(8 * phi) : 1; // rosette petals on the end
-    const k = (1 + 0.045 * fade * Math.cos(12 * phi + 0.15 * Math.sin(3 * phi))) * end;
+    // round 19: deeper carving, as on the samples — rounded flutes, a bead ring and a
+    // rosette of eight petals with a small boss on the end
+    const end = u > 4.85 ? 1 + 0.2 * Math.pow(Math.abs(Math.cos(4 * phi)), 0.6) - 0.1 : 1;
+    const flute = 1 - 0.09 * fade * Math.pow(Math.abs(Math.sin(6 * phi + 0.15 * Math.sin(3 * phi))), 0.5);
+    const bead = Math.abs(u - 3.0) < 0.06 ? 1.04 : 1;
+    const k = flute * end * bead;
     pos.setXYZ(i, x * k, y, z * k);
   }
   knob.computeVertexNormals();

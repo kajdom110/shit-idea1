@@ -10,7 +10,8 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 KF = json.loads((HERE / 'build/scenes.json').read_text())['keyframes']
-TOTAL = 240
+PLIST = json.loads((HERE / 'build/plist.json').read_text())  # scroll position of each frame
+TOTAL = len(PLIST)
 SCENES_END, FRONT, FALL0, FALL1 = 0.60, 0.64, 0.66, 0.82
 
 
@@ -31,7 +32,7 @@ def scene_pose(p):
 
 frames = []
 for f in range(TOTAL):
-    p = f / (TOTAL - 1)
+    p = PLIST[f]
     if p <= SCENES_END:
         yaw, pitch, dist = scene_pose(p / SCENES_END)
     elif p <= FRONT:
@@ -48,7 +49,7 @@ for f in range(TOTAL):
 captions = [round(k['at'] * SCENES_END, 4) for k in KF if k['caption'] != 0 or k['at'] == 0]
 captions = sorted(set(captions)) + [round((FALL1 + 1) / 2, 4)]  # last: the zoom onto the face
 (HERE / 'web/frames.json').write_text(json.dumps({
-    'count': TOTAL, 'frames': frames, 'captions': captions,
+    'count': TOTAL, 'p': PLIST, 'frames': frames, 'captions': captions,
     'sheet': {'yawStep': 15, 'pitches': [-60, -30, 0, 30, 60], 'dist': 250},
 }))
 print(captions)
