@@ -128,7 +128,7 @@ DUST = {}
 
 def add_dust(contact):
     """A volume of fine dust round the contact patch; its shape is driven per frame."""
-    size = (1.2, 1.2, 0.5)
+    size = (0.95, 0.95, 0.4)
     bpy.ops.mesh.primitive_cube_add(size=1, location=(contact.x, contact.y, ROLL.floor + size[2] / 2))
     d = bpy.context.object; d.name = 'dust'
     d.scale = size
@@ -197,9 +197,9 @@ def set_dust(t):
     vals = DUST['vals']
     vals['R'].outputs[0].default_value = 0.05 + 0.32 * tau ** 0.6
     vals['W'].outputs[0].default_value = 0.035 + 0.12 * tau
-    vals['H'].outputs[0].default_value = 0.012 + 0.22 * tau ** 0.8
-    amp = min(1.0, tau / 0.05) * math.exp(-1.3 * max(0.0, tau - 0.05))
-    vals['A'].outputs[0].default_value = 14.0 * amp
+    vals['H'].outputs[0].default_value = 0.012 + 0.15 * tau ** 0.8
+    amp = min(1.0, tau / 0.05) * math.exp(-2.0 * max(0.0, tau - 0.05))
+    vals['A'].outputs[0].default_value = 6.0 * amp   # a little dust, not a cloud (user)
     vals['rise'].outputs[0].default_value = 0.2 * tau
     vals['swirl'].outputs[0].default_value = 0.25 * tau
     secs = 2.5 * tau   # the whole drift is about 2.5 s of real time, played slowly
@@ -244,7 +244,7 @@ def setup(w, h, spp):
     contact = end @ contact_local
     add_carpet(Vector((0.0, contact.y + 0.25, 0)))
     add_dust(contact)
-    sc.cycles.volume_step_rate = 1.0
+    sc.cycles.volume_step_rate = float(os.environ.get('FALL_VOL_STEP', '4.0'))
     sc.cycles.volume_max_steps = 256
     print('floor', round(ROLL.floor, 4), 'contact', tuple(round(c, 3) for c in contact),
           'clearance of other parts at 90°', round(ROLL.lowest_other(90.0), 4))
@@ -279,7 +279,7 @@ def main(argv):
         B.render(sc, out / f't{round(t * 1000):04d}_{w}.png', seed=round(t * 1000), raw_dir=out / 'raw')
     elif mode == 'frames':
         n = int(argv[1]) if len(argv) > 1 else 180
-        sc, pivot, cam, contact = setup(1600, 900, 96)
+        sc, pivot, cam, contact = setup(1600, 900, 48)
         OUT.mkdir(parents=True, exist_ok=True)
         for f in range(n):
             path = OUT / f'{f:04d}.png'
