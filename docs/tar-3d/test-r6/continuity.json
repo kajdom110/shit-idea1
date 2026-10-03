@@ -1,34 +1,9 @@
 {
- "diff_median": 0.46,
- "diff_max": 9.97,
+ "frames": 285,
+ "diff_median": 0.83,
+ "diff_max": 6.26,
+ "argmax": 135,
  "isolated_jumps": [],
- "fast_moves": [
-  {
-   "frames": "38-49",
-   "peak": 4.11
-  },
-  {
-   "frames": "61-72",
-   "peak": 3.92
-  },
-  {
-   "frames": "82-95",
-   "peak": 8.03
-  },
-  {
-   "frames": "109-119",
-   "peak": 8.5
-  },
-  {
-   "frames": "127-138",
-   "peak": 9.97
-  },
-  {
-   "frames": "216-230",
-   "peak": 5.93
-  }
- ],
  "blank_frames": [],
- "sheet_yaw_diff_median": 1.84,
- "sheet_yaw_diff_max": 4.64
+ "before_round19_diff_max": 9.97
 }
