@@ -6,3 +6,4 @@ __pycache__/
 frames_raw_*/
 assets/dirty_carpet_*
 assets/persian_carpet.png
+export/
