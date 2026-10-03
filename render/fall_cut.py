@@ -103,10 +103,20 @@ def add_carpet(centre):
     g.link(nm.outputs['Normal'], bsdf.inputs['Normal'])
     pile = g.noise(g.new('ShaderNodeTexCoord').outputs['Object'], 900.0, detail=2)
     col = g.mix(1.0, img.outputs['Color'], g.grey(g.op('ADD', 0.86, g.op('MULTIPLY', pile.outputs['Fac'], 0.24))), 'MULTIPLY')
+    # a pool of light: the carpet sinks into the dark away from the instrument, so its edges
+    # never show as a rectangle floating in the black
+    ob = g.new('ShaderNodeTexCoord').outputs['Object']
+    sep = g.new('ShaderNodeSeparateXYZ'); g.link(ob, sep.inputs[0])
+    rr = g.op('SQRT', g.op('ADD', g.op('POWER', g.op('DIVIDE', sep.outputs['X'], 0.8), 2.0), g.op('POWER', g.op('DIVIDE', sep.outputs['Y'], 1.05), 2.0)))
+    pool = g.new('ShaderNodeMapRange', **{'From Min': 0.45, 'From Max': 0.95, 'To Min': 1.0, 'To Max': 0.0})
+    pool.interpolation_type = 'SMOOTHSTEP'; g.link(rr, pool.inputs['Value'])
+    col = g.mix(1.0, col, g.grey(g.op('MULTIPLY', pool.outputs['Result'], 0.8)), 'MULTIPLY')
+    g.link(g.op('MULTIPLY', pool.outputs['Result'], 0.25), bsdf.inputs['Sheen Weight'])   # no grey sheen out in the dark
+    g.link(g.op('MULTIPLY', pool.outputs['Result'], 0.2), bsdf.inputs['Specular IOR Level'])
     g.link(col, bsdf.inputs['Base Color'])
     bsdf.inputs['Roughness'].default_value = 0.92
     bsdf.inputs['Specular IOR Level'].default_value = 0.2
-    bsdf.inputs['Sheen Weight'].default_value = 0.6
+    bsdf.inputs['Sheen Weight'].default_value = 0.25
     bsdf.inputs['Sheen Roughness'].default_value = 0.4
     c.data.materials.append(m)
     return c
@@ -122,7 +132,7 @@ def add_dust(contact):
     bpy.ops.mesh.primitive_cube_add(size=1, location=(contact.x, contact.y, ROLL.floor + size[2] / 2))
     d = bpy.context.object; d.name = 'dust'
     d.scale = size
-    bpy.ops.object.transform_apply(scale=True)   # object coordinates in metres from the centre
+    bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)   # object coords in metres from the centre
     m = bpy.data.materials.new('dust'); m.use_nodes = True
     nt = m.node_tree; nt.nodes.clear(); g = B.Nodes(nt)
     out = g.new('ShaderNodeOutputMaterial')
@@ -187,10 +197,10 @@ def set_dust(t):
     vals = DUST['vals']
     vals['R'].outputs[0].default_value = 0.05 + 0.32 * tau ** 0.6
     vals['W'].outputs[0].default_value = 0.035 + 0.12 * tau
-    vals['H'].outputs[0].default_value = 0.012 + 0.16 * tau ** 0.8
+    vals['H'].outputs[0].default_value = 0.012 + 0.22 * tau ** 0.8
     amp = min(1.0, tau / 0.05) * math.exp(-1.3 * max(0.0, tau - 0.05))
-    vals['A'].outputs[0].default_value = 9.0 * amp
-    vals['rise'].outputs[0].default_value = 0.12 * tau
+    vals['A'].outputs[0].default_value = 14.0 * amp
+    vals['rise'].outputs[0].default_value = 0.2 * tau
     vals['swirl'].outputs[0].default_value = 0.25 * tau
     secs = 2.5 * tau   # the whole drift is about 2.5 s of real time, played slowly
     k, ge = 2.2, 0.06   # air drag, and a little settling
@@ -206,11 +216,11 @@ def set_dust(t):
 def camera_state(t, contact):
     """From the front, a little above; it follows the instrument down and moves in for the dust."""
     stand = Vector((0.0, 0.0, ROLL.floor + 0.47))
-    lie = Vector((contact.x, contact.y + 0.18, ROLL.floor + 0.08))
+    lie = Vector((contact.x, contact.y + 0.22, ROLL.floor + 0.06))
     e = B.ease(min(1.0, max(0.0, (t - HOLD) / (REBOUND - HOLD))))
     target = stand.lerp(lie, e)
-    dist = 3.3 + (1.95 - 3.3) * e
-    elev = 6.0 + (20.0 - 6.0) * e
+    dist = 3.3 + (1.9 - 3.3) * e
+    elev = 6.0 + (46.0 - 6.0) * e   # looks down at the lying instrument and the dust round it
     if t > REBOUND:   # slow push-in while the dust drifts
         u = (t - REBOUND) / (1 - REBOUND)
         dist -= 0.3 * u
@@ -258,7 +268,7 @@ def main(argv):
     if mode == 'test':
         sc, pivot, cam, contact = setup(960, 540, 48)
         out = B.BUILD / 'fall_test'; out.mkdir(parents=True, exist_ok=True)
-        for t in (0.0, 0.25, 0.42, 0.5, 0.56, 0.7, 0.85, 1.0):
+        for t in [float(x) for x in os.environ.get('FALL_TEST_T', '0,0.25,0.42,0.5,0.56,0.7,0.85,1').split(',')]:
             apply(t, pivot, cam, contact)
             B.render(sc, out / f't{round(t * 100):03d}.png', seed=round(t * 100), raw_dir=out / 'raw')
     elif mode == 'at':
