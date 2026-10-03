@@ -1,0 +1,22 @@
+{
+ "scroll": {
+  "same_both_ways": true,
+  "monotonic": true,
+  "first": 0,
+  "last": 239,
+  "empty_canvas_at": []
+ },
+ "wheel_end": 239,
+ "page_errors": [],
+ "load_10Mbps": {
+  "first_frame_s": 0.191,
+  "every_16th_frame_s": 0.408,
+  "all_scroll_frames_s": 3.975
+ },
+ "load_4Mbps": {
+  "first_frame_s": 0.25,
+  "every_16th_frame_s": 0.7,
+  "all_scroll_frames_s": 9.216
+ },
+ "phone_horizontal_scroll": false
+}
