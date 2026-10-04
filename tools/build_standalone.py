@@ -19,6 +19,7 @@ def main():
     frames = ['data:image/webp;base64,' + base64.b64encode(f.read_bytes()).decode() for f in FRAMES]
 
     html = html.replace('  <link rel="preload" as="image" href="assets/saz/seq/000.webp">\n', '')
+    html = html.replace('src="assets/saz/seq/000.webp"', 'src="' + frames[0] + '"')
     html = html.replace('<link rel="stylesheet" href="landing.css">', '<style>\n' + css + '</style>')
     html = html.replace('<script src="landing.js"></script>',
                         '<script>window.SAZ_FRAMES = ' + json.dumps(frames) + ';</script>\n'

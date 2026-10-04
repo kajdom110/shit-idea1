@@ -18,6 +18,7 @@ const PUSH_IN = 0.06; // extra zoom by the last frame
 
 const sequence = document.getElementById('sequence');
 const canvas = document.getElementById('sequenceCanvas');
+const poster = document.getElementById('sequencePoster');
 const context = canvas.getContext('2d');
 
 const frames = [];
@@ -131,6 +132,7 @@ function draw() {
     context.globalAlpha = 1;
   }
   fadeEdges(x, y, w, h);
+  poster.classList.add('hidden'); // the canvas has taken over
 }
 
 function requestDraw() {
@@ -143,8 +145,13 @@ function requestDraw() {
 window.addEventListener('scroll', requestDraw, { passive: true });
 window.addEventListener('resize', resize);
 
-// First frame first, so the opening shot appears as soon as possible
-loadFrame(0).then(function () {
+// First frame first, so the opening shot appears as soon as possible.
+// Never wait forever: if it is slow or fails, start anyway after 4 s.
+const firstFrame = Promise.race([
+  loadFrame(0),
+  new Promise(function (resolve) { setTimeout(resolve, 4000); })
+]);
+firstFrame.then(function () {
   shown = scrollPosition(); // reloads mid-page start where the page is
   resize();
   canvas.classList.add('visible');
