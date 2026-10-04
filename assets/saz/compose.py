@@ -34,6 +34,7 @@ HD = HERE / 'hd'
 FINAL = HERE / 'final'
 PLATE = HERE / 'plate.webp'
 
+PAD_LEFT = 72  # px of carpet/backdrop added on the left so the instrument is not on the edge
 SHADOW_STRENGTH = 0.55
 SHADOW_BLUR = 22  # px at HD size
 SHADOW_DROP = 14  # shadow sits slightly below the instrument
@@ -79,8 +80,38 @@ def build_plate(esrgan, lama, session):
     mask = torch.from_numpy(hole.astype(np.float32))[None, None]
     with torch.no_grad():
         plate = lama(x, mask)[0].clamp(0, 1).permute(1, 2, 0).numpy()
+        # Outpaint a strip on the left: the panels put the body right at the edge
+        wide = np.pad(plate, ((0, 0), (PAD_LEFT, 0), (0, 0)))
+        strip = np.zeros(wide.shape[:2], np.float32)
+        strip[:, :PAD_LEFT] = 1
+        x = torch.from_numpy(wide).permute(2, 0, 1)[None]
+        mask = torch.from_numpy(strip)[None, None]
+        plate = lama(x, mask)[0].clamp(0, 1).permute(1, 2, 0).numpy()
+    plate = smooth_backdrop(plate, np.pad(hole, ((0, 0), (PAD_LEFT, 0)), constant_values=1))
     to_image(plate).save(PLATE, quality=95)
     return plate
+
+
+def smooth_backdrop(plate, hole):
+    """Rebuild the black backdrop as a smooth surface fitted to its real
+    pixels, so inpainting leaves no trace of the neck in the dark area."""
+    from align import HORIZON, TOP
+    horizon = (TOP + HORIZON) * 4
+    top = horizon - 40
+    region = plate[:top]
+    known = ~hole[:top].astype(bool)
+    known[:8] = False  # frame edge
+    ys, xs = np.mgrid[0:top, 0:plate.shape[1]].astype(np.float32) / 500
+    basis = np.stack([np.ones_like(xs), xs, ys, xs * xs, ys * ys, xs * ys], axis=-1)
+    coef, *_ = np.linalg.lstsq(basis[known], region[known], rcond=None)
+    rng = np.random.default_rng(0)
+    smooth = basis @ coef + rng.normal(0, 0.004, region.shape)
+    out = plate.copy()
+    out[:top] = smooth
+    # Blend into the carpet over the last rows above the horizon
+    ramp = np.clip((np.arange(top - 80, top) - (top - 80)) / 80, 0, 1)[:, None, None]
+    out[top - 80:top] = smooth[-80:] * (1 - ramp) + plate[top - 80:top] * ramp
+    return out
 
 
 def contact_shadow(alpha, horizon):
@@ -147,8 +178,8 @@ def dust(index, alpha, horizon):
 
 
 def compose(index, esrgan, session, plate, horizon):
-    image = to_float(hd_frame(index, esrgan))
-    alpha = matte(hd_frame(index, esrgan), session)
+    image = np.pad(to_float(hd_frame(index, esrgan)), ((0, 0), (PAD_LEFT, 0), (0, 0)))
+    alpha = np.pad(matte(hd_frame(index, esrgan), session), ((0, 0), (PAD_LEFT, 0)))
     background = plate * (1 - contact_shadow(alpha, horizon))[:, :, None]
     a = alpha[:, :, None]
     out = image * a + background * (1 - a)

@@ -28,7 +28,7 @@ BODY_SIZE = (98, 174)
 
 # Canvas extent around the body centre: room for the head in frame 00 (top)
 # and for the neck lying on the floor in frame 16 (right)
-LEFT, RIGHT, TOP, BOTTOM = 48, 172, 340, 140
+LEFT, RIGHT, TOP, BOTTOM = 70, 172, 340, 140
 HORIZON = -45  # horizon height relative to the body centre
 FEATHER = 6
 

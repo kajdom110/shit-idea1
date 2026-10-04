@@ -1,0 +1,80 @@
+@import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;700&display=swap');
+
+:root {
+  color-scheme: dark;
+  --black: #000;
+  --text: #d8cbb8;
+  --muted: #8a7f70;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  background-color: var(--black);
+  color: var(--text);
+  font-family: 'Vazirmatn', Tahoma, sans-serif;
+}
+
+/* Scroll length of the sequence: about 45% of a screen per frame */
+.sequence {
+  position: relative;
+  height: 800vh;
+}
+
+.stage {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+}
+
+#sequenceCanvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  transition: opacity 2.4s ease;
+}
+
+#sequenceCanvas.visible {
+  opacity: 1;
+}
+
+.instruments {
+  height: 120vh;
+}
+
+.contact {
+  min-height: 60vh;
+  padding: 80px 20px 60px;
+  text-align: center;
+  line-height: 2;
+}
+
+.contact h2 {
+  margin: 0 0 24px;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.contact p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.contact a {
+  color: var(--text);
+  text-decoration: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #sequenceCanvas {
+    transition: none;
+  }
+}

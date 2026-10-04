@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#000000">
+  <title>شت ایده ها</title>
+  <link rel="preload" as="image" href="assets/saz/final/00.webp">
+  <link rel="stylesheet" href="landing.css">
+</head>
+<body>
+  <!-- Scroll-driven sequence: the tall section gives the scroll distance,
+       the sticky stage keeps the frame on screen while it plays -->
+  <section class="sequence" id="sequence" aria-label="ساز تار آرام روی فرش می‌افتد">
+    <div class="stage">
+      <canvas id="sequenceCanvas"></canvas>
+    </div>
+  </section>
+
+  <!-- Reserved for the sliding showcase of other instruments -->
+  <section class="instruments" id="instruments" aria-hidden="true"></section>
+
+  <section class="contact" id="contact">
+    <h2>تماس با ما</h2>
+    <p>ایمیل: <a href="mailto:info@example.com">info@example.com</a></p>
+    <p>تلفن: ۰۹۱۲xxxxxxx</p>
+  </section>
+
+  <script src="landing.js"></script>
+</body>
+</html>
