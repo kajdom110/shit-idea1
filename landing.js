@@ -1,8 +1,9 @@
 // Scroll-driven playback of the tar fall (assets/saz/seq/NNN.webp: 81 frames
 // at equal angle steps, built by sequence.py from the 17 key frames).
 // The canvas sits in a sticky stage; scrolling through the tall .sequence
-// section maps linearly to a position in the frames, and neighbouring frames
-// are cross-faded, so the instrument turns at an even pace.
+// section maps linearly to a position in the frames. Only one frame is ever
+// drawn (no cross-fade, which looked ghostly); with frames ~1° apart and an
+// eased position, the instrument still turns smoothly at an even pace.
 // Cinematic touches: the shown position eases towards the scroll position
 // (inertia instead of hard steps) and the camera slowly pushes in.
 const FRAME_COUNT = 81;
@@ -102,11 +103,8 @@ function draw() {
     return;
   }
 
-  // Frames are only ~1° apart, so a straight cross-fade reads as continuous motion
-  const index = Math.floor(position);
-  const blend = position - index;
+  const index = Math.round(position);
   const base = frames[index];
-  const next = frames[Math.min(index + 1, FRAME_COUNT - 1)];
   if (!ready(base)) {
     return; // drawn again once this frame has loaded
   }
@@ -126,11 +124,6 @@ function draw() {
   context.fillStyle = '#000';
   context.fillRect(0, 0, canvas.width, canvas.height);
   context.drawImage(base, x, y, w, h);
-  if (blend > 0 && ready(next)) {
-    context.globalAlpha = blend;
-    context.drawImage(next, x, y, w, h);
-    context.globalAlpha = 1;
-  }
   fadeEdges(x, y, w, h);
   poster.classList.add('hidden'); // the canvas has taken over
 }

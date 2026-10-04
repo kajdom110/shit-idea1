@@ -4,10 +4,9 @@ The key frames tilt by uneven steps (2.5° to 12°), so played one per scroll
 step the fall speeds up and slows down. Here the rotation (and slight size
 change) between neighbouring key frames is measured from the instrument's
 outline, and frames are rendered at equal angle steps instead. An
-in-between frame rotates the instrument of the key frame before it forward
-and that of the key frame after it back to the same angle, around the body
-centre, and blends the two; both copies sit in the same pose, so there is
-no double image. Everything lands on the fixed carpet plate, with the
+in-between frame turns the instrument of the nearest key frame to the
+exact angle around the body centre; using a single source keeps every frame
+sharp, with no double image. Everything lands on the fixed carpet plate, with the
 contact shadow and, from the impact on, the dust.
 
 Usage: python3 sequence.py [COUNT]  ->  seq/NNN.webp (default 81 frames)
@@ -85,11 +84,13 @@ def frame_at(angle, angles, scales, layers, plate):
 
     c0, a0, h0, s0 = layers[i]
     c1, a1, h1, s1 = layers[i + 1]
-    # Interpolate the size change too (the neck foreshortens as it falls)
-    p0, a0 = rotate(c0, a0, t * span, scales[i] ** t)
-    p1, a1 = rotate(c1, a1, -(1 - t) * span, scales[i] ** (t - 1))
-    premultiplied = p0 * (1 - t) + p1 * t
-    alpha = a0 * (1 - t) + a1 * t
+    # Turn the nearest key frame to the exact angle (scaling for the neck's
+    # foreshortening too). A single source per frame: blending the two
+    # neighbours left faint double edges wherever their poses differ.
+    if t < 0.5:
+        premultiplied, alpha = rotate(c0, a0, t * span, scales[i] ** t)
+    else:
+        premultiplied, alpha = rotate(c1, a1, -(1 - t) * span, scales[i] ** (t - 1))
     colour = premultiplied / np.maximum(alpha, 1e-4)[:, :, None]
 
     out = plate * (1 - contact_shadow(alpha, HORIZON))[:, :, None]
