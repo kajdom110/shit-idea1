@@ -27,6 +27,10 @@ let pending = false;
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 function frameUrl(index) {
+  // The standalone test build (tools/build_standalone.py) embeds the frames
+  if (window.SAZ_FRAMES) {
+    return window.SAZ_FRAMES[index];
+  }
   return FRAME_PATH + String(index).padStart(3, '0') + '.webp';
 }
 
