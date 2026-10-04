@@ -1,16 +1,20 @@
-// Scroll-driven playback of the 17-frame tar fall (assets/saz/final/NN.webp).
+// Scroll-driven playback of the tar fall (assets/saz/seq/NNN.webp: 81 frames
+// at equal angle steps, built by sequence.py from the 17 key frames).
 // The canvas sits in a sticky stage; scrolling through the tall .sequence
-// section maps to a position in the frames, and neighbouring frames are
-// cross-faded so the motion stays smooth between the 17 drawings.
+// section maps linearly to a position in the frames, and neighbouring frames
+// are cross-faded, so the instrument turns at an even pace.
 // Cinematic touches: the shown position eases towards the scroll position
 // (inertia instead of hard steps) and the camera slowly pushes in.
-const FRAME_COUNT = 17;
-const FRAME_PATH = 'assets/saz/final/';
-const FILL = 0.94; // share of the screen the frame may take; the rest stays black
+const FRAME_COUNT = 81;
+const FRAME_PATH = 'assets/saz/seq/';
+// On wide screens the motion takes the middle third of the page width
+// (page : motion = 3 : 1); on portrait phones that would be too small, so
+// there it fills the screen. Height is always capped so black stays around it.
+const WIDTH_SHARE = 1 / 3;
+const HEIGHT_SHARE = 0.94;
 const EDGE_FADE = { side: 0.24, top: 0.1, bottom: 0.2 }; // edges melt into the black
-const EASE = 0.12; // share of the remaining distance covered per animation frame
+const EASE = 0.075; // share of the remaining distance covered per animation frame
 const PUSH_IN = 0.06; // extra zoom by the last frame
-const DISSOLVE = 0.3; // part of each step spent dissolving into the next frame
 
 const sequence = document.getElementById('sequence');
 const canvas = document.getElementById('sequenceCanvas');
@@ -23,7 +27,7 @@ let pending = false;
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 function frameUrl(index) {
-  return FRAME_PATH + String(index).padStart(2, '0') + '.webp';
+  return FRAME_PATH + String(index).padStart(3, '0') + '.webp';
 }
 
 function loadFrame(index) {
@@ -93,12 +97,9 @@ function draw() {
     return;
   }
 
-  // Hold each frame clean and dissolve only around the midpoint between two
-  // frames, so stopping the scroll never leaves a double image for long
+  // Frames are only ~1° apart, so a straight cross-fade reads as continuous motion
   const index = Math.floor(position);
-  const step = position - index;
-  const t = Math.min(Math.max((step - (0.5 - DISSOLVE / 2)) / DISSOLVE, 0), 1);
-  const blend = t * t * (3 - 2 * t);
+  const blend = position - index;
   const base = frames[index];
   const next = frames[Math.min(index + 1, FRAME_COUNT - 1)];
   if (!ready(base)) {
@@ -107,7 +108,10 @@ function draw() {
   current = position;
 
   const push = 1 + PUSH_IN * (position / (FRAME_COUNT - 1));
-  const scale = Math.min(canvas.width / base.naturalWidth, canvas.height / base.naturalHeight) * FILL * push;
+  const widthShare = canvas.width > canvas.height ? WIDTH_SHARE : HEIGHT_SHARE;
+  const fit = Math.min(canvas.width * widthShare / base.naturalWidth,
+    canvas.height * HEIGHT_SHARE / base.naturalHeight);
+  const scale = fit * push;
   const w = base.naturalWidth * scale;
   const h = base.naturalHeight * scale;
   const x = (canvas.width - w) / 2;
