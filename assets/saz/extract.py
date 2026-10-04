@@ -22,7 +22,11 @@ PANELS = [(l, 0, r, 513) for l, r in TOP] + [(l, 515, r, 1024) for l, r in BOTTO
 CAPTION = (0, 0, 95, 62)  # caption area inside each panel
 # Where the text actually sits ("Frame NN" line, then the angle line);
 # kept tight so the pegbox, which can reach into the caption area, is untouched
-TEXT_BOXES = [(6, 6, 88, 35), (18, 33, 56, 62)]
+TEXT_BOXES = [(6, 6, 88, 35), (18, 33, 68, 62)]
+
+
+def index_seed(panel):
+    return int(np.asarray(panel)[:8, :8].sum())
 
 
 def clean_caption(panel):
@@ -39,11 +43,22 @@ def clean_caption(panel):
     near_instrument = np.asarray(Image.fromarray((instrument * 255).astype(np.uint8))
                                  .filter(ImageFilter.MaxFilter(3))) > 0
     text = (hi > 0.07) & (saturation < 0.35) & in_boxes
-    mask = Image.fromarray((text * 255).astype(np.uint8)).filter(ImageFilter.MaxFilter(7))
+    mask = Image.fromarray((text * 255).astype(np.uint8)).filter(ImageFilter.MaxFilter(9))
     text = (np.asarray(mask) > 0) & in_boxes & ~near_instrument
-    background = np.median(region[~text & (hi < 0.12)], axis=0)
-    region[text] = background
-    px[t:b, l:r] = region
+    # Fill with a smooth quadratic surface fitted to the surrounding
+    # background, so the patch follows the local gradient; add matching grain
+    keep = ~text & ~near_instrument & (hi < 0.3)
+    keep[:, :4] = False  # panel edge carries the separator's anti-aliasing
+    keep[:4, :] = False
+    ys, xs = np.mgrid[0:region.shape[0], 0:region.shape[1]] / 60.0
+    basis = np.stack([np.ones_like(xs), xs, ys, xs * xs, ys * ys, xs * ys], axis=-1)
+    coef, *_ = np.linalg.lstsq(basis[keep], region[keep], rcond=None)
+    fill = basis @ coef
+    grain = np.minimum((region[keep] - fill[keep]).std(axis=0), 0.008)
+    rng = np.random.default_rng(index_seed(panel))
+    fill = fill + rng.normal(0, 1, fill.shape) * grain * 0.6
+    region[text] = fill[text]
+    px[t:b, l:r] = region.clip(0, 1)
     return Image.fromarray((px * 255).round().astype(np.uint8))
 
 
