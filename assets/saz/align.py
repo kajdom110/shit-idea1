@@ -116,7 +116,8 @@ def fill(image, covered, tilt):
     carpet_cols = slice(max(int(body_right), start), end)
     band_end = min(horizon + 30, height)
     for y in range(horizon - 14, band_end):
-        smooth = np.median(out[y, carpet_cols], axis=0)
+        # Lower percentile: the neck is lighter than the blurred carpet/backdrop
+        smooth = np.percentile(out[y, carpet_cols], 30, axis=0)
         blend = np.clip((band_end - y) / 12, 0, 1)  # fade into tiled detail below
         out[y, end:] = smooth * blend + out[y, end:] * (1 - blend)
     ok_cols = np.zeros_like(ok)
